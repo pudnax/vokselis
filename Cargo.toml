@@ -1,0 +1,15 @@
+[package]
+name = "chonker"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+color-eyre = "0.6.1"
+pollster = "0.2.5"
+raw-window-handle = "0.4.2"
+winit = "0.26.1"
+bytemuck = { version = "1.7.3", features = ["derive"] }
+env_logger = "0.9.0"
+wgpu = { git = "https://github.com/gfx-rs/wgpu", branch = "master", features = ["spirv"] }
