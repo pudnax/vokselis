@@ -13,6 +13,7 @@ pub struct State {
     pub height: u32,
 
     pipeline: wgpu::RenderPipeline,
+    pipeline_sec: wgpu::RenderPipeline,
 }
 
 impl State {
@@ -78,6 +79,27 @@ impl State {
             multiview: None,
         });
 
+        let shader_sec = device.create_shader_module(&wgpu::include_wgsl!("./shader_sec.wgsl"));
+
+        let pipeline_sec = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Render Pipeline"),
+            layout: None,
+            fragment: Some(wgpu::FragmentState {
+                module: &shader_sec,
+                entry_point: "fs_main",
+                targets: &[surface_format.into()],
+            }),
+            vertex: wgpu::VertexState {
+                module: &shader_sec,
+                entry_point: "vs_main",
+                buffers: &[],
+            },
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+        });
+
         Ok(Self {
             device,
             queue,
@@ -89,6 +111,7 @@ impl State {
             height,
 
             pipeline,
+            pipeline_sec,
         })
     }
 
@@ -128,6 +151,8 @@ impl State {
         });
 
         rpass.set_pipeline(&self.pipeline);
+        rpass.draw(0..3, 0..1);
+        rpass.set_pipeline(&self.pipeline_sec);
         rpass.draw(0..3, 0..1);
         drop(rpass);
 
