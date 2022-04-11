@@ -2,15 +2,26 @@
 name = "vokselis"
 version = "0.1.0"
 edition = "2021"
+authors = ["Alex Komissarov <k.a.komissar@gmail.com>"]
+license = "MIT"
+description = "Voxels with Rust and wgpu."
+repository = "https://github.com/pudnax/vokselis/"
+readme = "README.md"
+keywords = ["graphics", "voxels", "wgpu", "shaders", "creative"]
+exclude = [".gitignore", "examples", ".github"]
+categories = ["graphics", "rendering"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 color-eyre = "0.6.1"
 pollster = "0.2.5"
-raw-window-handle = "0.4.2"
 winit = "0.26.1"
 bytemuck = { version = "1.7.3", features = ["derive"] }
 env_logger = "0.9.0"
-wgpu = { git = "https://github.com/gfx-rs/wgpu", branch = "master", features = ["spirv"] }
 notify = "5.0.0-pre.14"
+
+[dependencies.wgpu]
+git = "https://github.com/gfx-rs/wgpu"
+branch = "master"
+features = ["spirv", "vulkan-portability"]
