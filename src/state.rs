@@ -1,4 +1,4 @@
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{eyre, Result};
 use wgpu::Instance;
 use winit::{dpi::PhysicalSize, window::Window};
 
@@ -22,14 +22,14 @@ impl State {
 
         let surface = unsafe { instance.create_surface(&window) };
 
-        let adapter = instance
+        let adapter: wgpu::Adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::HighPerformance,
                 force_fallback_adapter: false,
                 compatible_surface: Some(&surface),
             })
             .await
-            .expect("Failed to create device adapter.");
+            .ok_or(eyre!("Failed to create device adapter."))?;
 
         let features = adapter.features();
         let limits = adapter.limits();

@@ -25,3 +25,8 @@ notify = "5.0.0-pre.14"
 git = "https://github.com/gfx-rs/wgpu"
 branch = "master"
 features = ["spirv", "vulkan-portability"]
+
+[dependencies.naga]
+git = "https://github.com/gfx-rs/naga"
+branch = "master"
+features = ["span", "spv-out", "wgsl-in"]

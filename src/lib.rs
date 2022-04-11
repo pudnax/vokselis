@@ -1,6 +1,7 @@
 use std::time::Instant;
 
 mod frame_counter;
+mod shader_compiler;
 mod state;
 
 use color_eyre::eyre::Result;

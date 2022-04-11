@@ -838,6 +838,23 @@ dependencies = [
 [[package]]
 name = "naga"
 version = "0.8.0"
+source = "git+https://github.com/gfx-rs/naga?branch=master#7aaac25fbf64c0f77f0e2deba2963293f3632dad"
+dependencies = [
+ "bit-set",
+ "bitflags",
+ "codespan-reporting",
+ "hexf-parse",
+ "indexmap",
+ "log",
+ "num-traits",
+ "rustc-hash",
+ "spirv",
+ "thiserror",
+]
+
+[[package]]
+name = "naga"
+version = "0.8.0"
 source = "git+https://github.com/gfx-rs/naga?rev=f90e563#f90e563c281cfc71c794e0426ebcced9e3999202"
 dependencies = [
  "bit-set",
@@ -1395,6 +1412,7 @@ dependencies = [
  "bytemuck",
  "color-eyre",
  "env_logger",
+ "naga 0.8.0 (git+https://github.com/gfx-rs/naga?branch=master)",
  "notify",
  "pollster",
  "wgpu",
@@ -1581,7 +1599,7 @@ dependencies = [
  "arrayvec",
  "js-sys",
  "log",
- "naga",
+ "naga 0.8.0 (git+https://github.com/gfx-rs/naga?rev=f90e563)",
  "parking_lot",
  "raw-window-handle",
  "smallvec",
@@ -1605,7 +1623,7 @@ dependencies = [
  "copyless",
  "fxhash",
  "log",
- "naga",
+ "naga 0.8.0 (git+https://github.com/gfx-rs/naga?rev=f90e563)",
  "parking_lot",
  "profiling",
  "raw-window-handle",
@@ -1638,7 +1656,7 @@ dependencies = [
  "libloading",
  "log",
  "metal",
- "naga",
+ "naga 0.8.0 (git+https://github.com/gfx-rs/naga?rev=f90e563)",
  "objc",
  "parking_lot",
  "profiling",
