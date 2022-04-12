@@ -1,12 +1,15 @@
 use color_eyre::eyre::Result;
-use notify::{event::ModifyKind, Config, EventKind, Watcher as WatcherTrait};
+use notify::{
+    event::{AccessKind, AccessMode},
+    Config, EventKind, Watcher as WatcherTrait,
+};
 use std::{
     cell::RefCell,
     collections::HashMap,
+    ffi::OsStr,
     path::{Path, PathBuf},
     rc::Rc,
     sync::Arc,
-    time::Duration,
 };
 
 use winit::event_loop::EventLoop;
@@ -18,23 +21,26 @@ pub trait ReloadablePipeline {
 }
 
 pub struct Watcher {
-    watcher: notify::PollWatcher,
+    _watcher: notify::RecommendedWatcher,
     pub hash_dump: HashMap<PathBuf, Rc<RefCell<dyn ReloadablePipeline>>>,
 }
+
+const SHADER_FOLDER: &str = "shaders";
 
 impl Watcher {
     pub fn new(
         device: Arc<wgpu::Device>,
         event_loop: &EventLoop<(PathBuf, wgpu::ShaderModule)>,
     ) -> Result<Self> {
-        let mut watcher = notify::PollWatcher::with_delay(
-            watch_callback(device, event_loop),
-            Duration::from_millis(3),
-        )?;
+        let mut watcher = notify::recommended_watcher(watch_callback(device, event_loop))?;
         watcher.configure(Config::PreciseEvents(true))?;
+        watcher.watch(
+            Path::new(SHADER_FOLDER),
+            notify::RecursiveMode::NonRecursive,
+        )?;
 
         Ok(Self {
-            watcher,
+            _watcher: watcher,
             hash_dump: HashMap::new(),
         })
     }
@@ -44,8 +50,6 @@ impl Watcher {
         path: &Path,
         pipeline: Rc<RefCell<dyn ReloadablePipeline>>,
     ) -> Result<()> {
-        self.watcher
-            .watch(path, notify::RecursiveMode::NonRecursive)?;
         self.hash_dump.insert(path.to_path_buf(), pipeline.clone());
         Ok(())
     }
@@ -61,13 +65,16 @@ fn watch_callback(
     move |event| match event {
         Ok(res) => {
             if let notify::event::Event {
-                kind: EventKind::Modify(ModifyKind::Metadata(..) | ModifyKind::Data(..)),
+                kind: EventKind::Access(AccessKind::Close(AccessMode::Write)),
                 paths,
                 ..
             } = res
             {
-                for path in paths {
-                    let path = path.canonicalize().expect("Failed canonicalize path");
+                for path in paths
+                    .into_iter()
+                    .filter(|p| p.extension() == Some(OsStr::new("wgsl")))
+                {
+                    let path = path.canonicalize().expect("Failed to canonicalize path");
                     if let Ok(x) = shader_compiler.create_shader_module(&path) {
                         let device_ref = device.upgrade().unwrap();
                         let module = unsafe {

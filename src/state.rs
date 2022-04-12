@@ -124,12 +124,12 @@ impl State {
 
         let mut watcher = Watcher::new(device.clone(), event_loop)?;
 
-        let sh1 = Path::new("src/shader.wgsl").canonicalize()?;
+        let sh1 = Path::new("shaders/shader.wgsl").canonicalize()?;
         let pipeline = ScreenSpacePipeline::from_path(&device, surface_format, &sh1);
         let pipeline = Rc::new(RefCell::new(pipeline));
         watcher.register(&sh1, pipeline.clone())?;
 
-        let sh2 = Path::new("src/shader_sec.wgsl").canonicalize()?;
+        let sh2 = Path::new("shaders/shader_sec.wgsl").canonicalize()?;
         let pipeline_sec = ScreenSpacePipeline::from_path(&device, surface_format, &sh2);
         let pipeline_sec = Rc::new(RefCell::new(pipeline_sec));
         watcher.register(&sh2, pipeline_sec.clone())?;
