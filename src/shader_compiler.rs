@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::Path;
 
 use color_eyre::Result;
 use naga::{
@@ -6,18 +6,6 @@ use naga::{
     front::wgsl,
     valid::{Capabilities, ValidationFlags, Validator},
 };
-
-#[derive(Hash, Debug, Clone)]
-pub struct ShaderInfo {
-    pub path: PathBuf,
-    pub entry_point: String,
-}
-
-impl ShaderInfo {
-    pub fn new(path: PathBuf, entry_point: String) -> ShaderInfo {
-        ShaderInfo { path, entry_point }
-    }
-}
 
 pub struct ShaderCompiler {
     validator: Validator,
@@ -29,15 +17,12 @@ impl ShaderCompiler {
         Self::default()
     }
 
-    pub fn create_shader_module(
-        &mut self,
-        shader_info: &ShaderInfo,
-        _shader_stage: naga::ShaderStage,
-    ) -> Result<Vec<u32>> {
-        let source = std::fs::read_to_string(&shader_info.path)?;
+    pub fn create_shader_module(&mut self, path: &Path) -> Result<Vec<u32>> {
+        let source = std::fs::read_to_string(&path)?;
         let module = match wgsl::parse_str(&source) {
             Ok(m) => m,
             Err(e) => {
+                eprintln!("Shader compilation error:");
                 e.emit_to_stderr(&source);
                 return Err(e.into());
             }

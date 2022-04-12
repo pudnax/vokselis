@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::{path::PathBuf, time::Instant};
 
 mod frame_counter;
 mod shader_compiler;
@@ -13,8 +13,11 @@ use winit::{
     window::Window,
 };
 
-pub async fn run(event_loop: EventLoop<()>, window: Window) -> Result<()> {
-    let mut state = state::State::new(&window).block_on()?;
+pub async fn run(
+    event_loop: EventLoop<(PathBuf, wgpu::ShaderModule)>,
+    window: Window,
+) -> Result<()> {
+    let mut state = state::State::new(&window, &event_loop).block_on()?;
 
     let mut last_frame_inst = Instant::now();
     let mut frame_counter = frame_counter::FrameCounter::new();
@@ -57,6 +60,13 @@ pub async fn run(event_loop: EventLoop<()>, window: Window) -> Result<()> {
                         eprintln!("{:?}", e);
                         window.request_redraw();
                     }
+                }
+            }
+            Event::UserEvent((path, module)) => {
+                println!("Received new user event");
+                if let Some(pipeline) = state.hash_dump.get_mut(&path) {
+                    let mut pipeline = pipeline.borrow_mut();
+                    pipeline.reload(&state.device, module);
                 }
             }
             _ => {}

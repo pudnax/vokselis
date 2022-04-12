@@ -8,7 +8,7 @@ fn main() -> Result<()> {
     color_eyre::install()?;
     env_logger::init();
 
-    let event_loop = EventLoop::new();
+    let event_loop = EventLoop::with_user_event();
     let window = WindowBuilder::new().build(&event_loop)?;
 
     run(event_loop, window).block_on()

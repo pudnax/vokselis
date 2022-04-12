@@ -20,4 +20,3 @@ fn vs_main(@builtin(vertex_index) vertex_idx: u32) -> VertexOutput {
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     return vec4<f32>(1., 1., 1., 1.);
 }
-
