@@ -1,22 +1,15 @@
 use std::{
     cell::RefCell,
-    collections::HashMap,
     path::{Path, PathBuf},
     rc::Rc,
     sync::Arc,
-    time::Duration,
 };
 
 use color_eyre::eyre::{eyre, Result};
-use notify::{event::ModifyKind, Config, EventKind, Watcher};
 use wgpu::Instance;
 use winit::{dpi::PhysicalSize, window::Window};
 
-use crate::shader_compiler::ShaderCompiler;
-
-pub trait ReloadablePipeline {
-    fn reload(&mut self, device: &wgpu::Device, module: wgpu::ShaderModule);
-}
+use crate::watcher::{ReloadablePipeline, Watcher};
 
 struct ScreenSpacePipeline {
     pipeline: wgpu::RenderPipeline,
@@ -24,9 +17,11 @@ struct ScreenSpacePipeline {
 }
 
 impl ScreenSpacePipeline {
-    #![allow(dead_code)]
-    fn new(device: &wgpu::Device, surface_format: wgpu::TextureFormat) -> Self {
-        let shader = device.create_shader_module(&wgpu::include_wgsl!("./shader.wgsl"));
+    fn from_path(device: &wgpu::Device, surface_format: wgpu::TextureFormat, path: &Path) -> Self {
+        let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            label: None,
+            source: wgpu::ShaderSource::Wgsl(std::fs::read_to_string(path).unwrap().into()),
+        });
         Self::new_with_module(device, surface_format, shader)
     }
 
@@ -67,7 +62,7 @@ impl ReloadablePipeline for ScreenSpacePipeline {
 }
 
 pub struct State {
-    _watcher: notify::PollWatcher,
+    pub watcher: Watcher,
     pub device: Arc<wgpu::Device>,
     pub queue: wgpu::Queue,
     pub surface: wgpu::Surface,
@@ -79,7 +74,6 @@ pub struct State {
 
     pipeline: Rc<RefCell<ScreenSpacePipeline>>,
     pipeline_sec: Rc<RefCell<ScreenSpacePipeline>>,
-    pub hash_dump: HashMap<PathBuf, Rc<RefCell<dyn ReloadablePipeline>>>,
 }
 
 impl State {
@@ -128,58 +122,17 @@ impl State {
         };
         surface.configure(&device, &surface_config);
 
-        let shader = device.create_shader_module(&wgpu::include_wgsl!("./shader.wgsl"));
-        let pipeline = ScreenSpacePipeline::new_with_module(&device, surface_format, shader);
+        let mut watcher = Watcher::new(device.clone(), event_loop)?;
+
+        let sh1 = Path::new("src/shader.wgsl").canonicalize()?;
+        let pipeline = ScreenSpacePipeline::from_path(&device, surface_format, &sh1);
         let pipeline = Rc::new(RefCell::new(pipeline));
+        watcher.register(&sh1, pipeline.clone())?;
 
-        let shader = device.create_shader_module(&wgpu::include_wgsl!("./shader_sec.wgsl"));
-        let pipeline_sec = ScreenSpacePipeline::new_with_module(&device, surface_format, shader);
+        let sh2 = Path::new("src/shader_sec.wgsl").canonicalize()?;
+        let pipeline_sec = ScreenSpacePipeline::from_path(&device, surface_format, &sh2);
         let pipeline_sec = Rc::new(RefCell::new(pipeline_sec));
-
-        let proxy = event_loop.create_proxy();
-        let mut watcher = notify::PollWatcher::with_delay(
-            {
-                let device = Arc::downgrade(&device);
-                let mut shader_compiler = ShaderCompiler::new();
-                move |event| match event {
-                    Ok(res) => {
-                        if let notify::event::Event {
-                            kind: EventKind::Modify(ModifyKind::Metadata(..) | ModifyKind::Data(..)),
-                            paths,
-                            ..
-                        } = res
-                        {
-                            for path in paths {
-                                let path = path.canonicalize().unwrap();
-                                if let Ok(x) = shader_compiler.create_shader_module(&path) {
-                                    let device_ref = device.upgrade().unwrap();
-                                    let module = device_ref.create_shader_module(
-                                        &wgpu::ShaderModuleDescriptor {
-                                            label: None,
-                                            source: wgpu::ShaderSource::SpirV(x.into()),
-                                        },
-                                    );
-                                    proxy.send_event((path, module)).unwrap();
-                                };
-                            }
-                        }
-                    }
-                    Err(err) => {
-                        eprintln!("File watcher error: {err}");
-                    }
-                }
-            },
-            Duration::from_millis(3),
-        )?;
-        watcher.configure(Config::PreciseEvents(true))?;
-        let sh1 = Path::new("src/shader.wgsl").canonicalize().unwrap();
-        watcher.watch(&sh1, notify::RecursiveMode::NonRecursive)?;
-        let sh2 = Path::new("src/shader_sec.wgsl").canonicalize().unwrap();
-        watcher.watch(&sh2, notify::RecursiveMode::NonRecursive)?;
-
-        let mut hash_dump: HashMap<PathBuf, Rc<RefCell<dyn ReloadablePipeline>>> = HashMap::new();
-        hash_dump.insert(sh1, pipeline.clone());
-        hash_dump.insert(sh2, pipeline_sec.clone());
+        watcher.register(&sh2, pipeline_sec.clone())?;
 
         Ok(Self {
             device,
@@ -193,8 +146,7 @@ impl State {
 
             pipeline,
             pipeline_sec,
-            hash_dump,
-            _watcher: watcher,
+            watcher,
         })
     }
 
@@ -225,12 +177,7 @@ impl State {
                 view: &frame_view,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 0.3,
-                        g: 0.2,
-                        b: 0.2,
-                        a: 1.0,
-                    }),
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                     store: true,
                 },
             }],

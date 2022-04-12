@@ -3,6 +3,8 @@ use std::{path::PathBuf, time::Instant};
 mod frame_counter;
 mod shader_compiler;
 mod state;
+mod utils;
+mod watcher;
 
 use color_eyre::eyre::Result;
 use pollster::FutureExt;
@@ -63,7 +65,7 @@ pub async fn run(
                 }
             }
             Event::UserEvent((path, module)) => {
-                if let Some(pipeline) = state.hash_dump.get_mut(&path) {
+                if let Some(pipeline) = state.watcher.hash_dump.get_mut(&path) {
                     let mut pipeline = pipeline.borrow_mut();
                     pipeline.reload(&state.device, module);
                 }
