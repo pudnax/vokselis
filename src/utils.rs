@@ -1,4 +1,4 @@
-use std::io::Write;
+use std::{cell::RefCell, io::Write, rc::Rc};
 
 pub fn green_blink() {
     const ESC: &str = "\x1B[";
@@ -11,3 +11,10 @@ pub fn green_blink() {
         std::io::stdout().flush().unwrap();
     });
 }
+
+pub(crate) trait RcWrap: Sized {
+    fn wrap(self) -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(self))
+    }
+}
+impl<T> RcWrap for T where T: Sized {}

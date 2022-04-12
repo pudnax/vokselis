@@ -3,6 +3,8 @@ use notify::{
     event::{AccessKind, AccessMode},
     Config, EventKind, Watcher as WatcherTrait,
 };
+use winit::event_loop::EventLoop;
+
 use std::{
     cell::RefCell,
     collections::HashMap,
@@ -12,9 +14,7 @@ use std::{
     sync::Arc,
 };
 
-use winit::event_loop::EventLoop;
-
-use crate::shader_compiler::ShaderCompiler;
+use crate::{shader_compiler::ShaderCompiler, SHADER_FOLDER};
 
 pub trait ReloadablePipeline {
     fn reload(&mut self, device: &wgpu::Device, module: wgpu::ShaderModule);
@@ -24,8 +24,6 @@ pub struct Watcher {
     _watcher: notify::RecommendedWatcher,
     pub hash_dump: HashMap<PathBuf, Rc<RefCell<dyn ReloadablePipeline>>>,
 }
-
-const SHADER_FOLDER: &str = "shaders";
 
 impl Watcher {
     pub fn new(

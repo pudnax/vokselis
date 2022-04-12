@@ -9,7 +9,10 @@ use color_eyre::eyre::{eyre, Result};
 use wgpu::Instance;
 use winit::{dpi::PhysicalSize, window::Window};
 
-use crate::watcher::{ReloadablePipeline, Watcher};
+use crate::{
+    utils::RcWrap,
+    watcher::{ReloadablePipeline, Watcher},
+};
 
 struct ScreenSpacePipeline {
     pipeline: wgpu::RenderPipeline,
@@ -125,13 +128,11 @@ impl State {
         let mut watcher = Watcher::new(device.clone(), event_loop)?;
 
         let sh1 = Path::new("shaders/shader.wgsl").canonicalize()?;
-        let pipeline = ScreenSpacePipeline::from_path(&device, surface_format, &sh1);
-        let pipeline = Rc::new(RefCell::new(pipeline));
+        let pipeline = ScreenSpacePipeline::from_path(&device, surface_format, &sh1).wrap();
         watcher.register(&sh1, pipeline.clone())?;
 
         let sh2 = Path::new("shaders/shader_sec.wgsl").canonicalize()?;
-        let pipeline_sec = ScreenSpacePipeline::from_path(&device, surface_format, &sh2);
-        let pipeline_sec = Rc::new(RefCell::new(pipeline_sec));
+        let pipeline_sec = ScreenSpacePipeline::from_path(&device, surface_format, &sh2).wrap();
         watcher.register(&sh2, pipeline_sec.clone())?;
 
         Ok(Self {

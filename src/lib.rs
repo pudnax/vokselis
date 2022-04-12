@@ -15,6 +15,8 @@ use winit::{
     window::Window,
 };
 
+const SHADER_FOLDER: &str = "shaders";
+
 pub async fn run(
     event_loop: EventLoop<(PathBuf, wgpu::ShaderModule)>,
     window: Window,
