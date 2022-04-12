@@ -8,7 +8,6 @@ use std::{
 };
 
 use color_eyre::eyre::{eyre, Result};
-use crossbeam_channel::Receiver;
 use notify::{event::ModifyKind, Config, EventKind, Watcher};
 use wgpu::Instance;
 use winit::{dpi::PhysicalSize, window::Window};
@@ -25,6 +24,7 @@ struct ScreenSpacePipeline {
 }
 
 impl ScreenSpacePipeline {
+    #![allow(dead_code)]
     fn new(device: &wgpu::Device, surface_format: wgpu::TextureFormat) -> Self {
         let shader = device.create_shader_module(&wgpu::include_wgsl!("./shader.wgsl"));
         Self::new_with_module(device, surface_format, shader)
@@ -62,11 +62,12 @@ impl ScreenSpacePipeline {
 
 impl ReloadablePipeline for ScreenSpacePipeline {
     fn reload(&mut self, device: &wgpu::Device, module: wgpu::ShaderModule) {
-        *self = Self::new_with_module(&device, self.surface_format, module);
+        *self = Self::new_with_module(device, self.surface_format, module);
     }
 }
 
 pub struct State {
+    _watcher: notify::PollWatcher,
     pub device: Arc<wgpu::Device>,
     pub queue: wgpu::Queue,
     pub surface: wgpu::Surface,
@@ -78,11 +79,7 @@ pub struct State {
 
     pipeline: Rc<RefCell<ScreenSpacePipeline>>,
     pipeline_sec: Rc<RefCell<ScreenSpacePipeline>>,
-
     pub hash_dump: HashMap<PathBuf, Rc<RefCell<dyn ReloadablePipeline>>>,
-
-    watcher: notify::PollWatcher,
-    watch_resv: Receiver<(PathBuf, wgpu::ShaderModule)>,
 }
 
 impl State {
@@ -139,11 +136,10 @@ impl State {
         let pipeline_sec = ScreenSpacePipeline::new_with_module(&device, surface_format, shader);
         let pipeline_sec = Rc::new(RefCell::new(pipeline_sec));
 
-        let (tx, rx) = crossbeam_channel::unbounded();
         let proxy = event_loop.create_proxy();
         let mut watcher = notify::PollWatcher::with_delay(
             {
-                let device = device.clone();
+                let device = Arc::downgrade(&device);
                 let mut shader_compiler = ShaderCompiler::new();
                 move |event| match event {
                     Ok(res) => {
@@ -155,18 +151,15 @@ impl State {
                         {
                             for path in paths {
                                 let path = path.canonicalize().unwrap();
-                                match shader_compiler.create_shader_module(&path) {
-                                    Ok(x) => {
-                                        let module = device.create_shader_module(
-                                            &wgpu::ShaderModuleDescriptor {
-                                                label: None,
-                                                source: wgpu::ShaderSource::SpirV(x.into()),
-                                            },
-                                        );
-                                        // tx.send((path, module)).unwrap();
-                                        proxy.send_event((path, module)).unwrap();
-                                    }
-                                    Err(_) => {}
+                                if let Ok(x) = shader_compiler.create_shader_module(&path) {
+                                    let device_ref = device.upgrade().unwrap();
+                                    let module = device_ref.create_shader_module(
+                                        &wgpu::ShaderModuleDescriptor {
+                                            label: None,
+                                            source: wgpu::ShaderSource::SpirV(x.into()),
+                                        },
+                                    );
+                                    proxy.send_event((path, module)).unwrap();
                                 };
                             }
                         }
@@ -187,9 +180,6 @@ impl State {
         let mut hash_dump: HashMap<PathBuf, Rc<RefCell<dyn ReloadablePipeline>>> = HashMap::new();
         hash_dump.insert(sh1, pipeline.clone());
         hash_dump.insert(sh2, pipeline_sec.clone());
-        hash_dump.keys().for_each(|x| {
-            dbg!(x);
-        });
 
         Ok(Self {
             device,
@@ -201,13 +191,10 @@ impl State {
             width,
             height,
 
-            hash_dump,
-
             pipeline,
             pipeline_sec,
-
-            watcher,
-            watch_resv: rx,
+            hash_dump,
+            _watcher: watcher,
         })
     }
 
@@ -230,7 +217,7 @@ impl State {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
 
         let pipeline = &self.pipeline.borrow().pipeline;
-        let pipeline_sec = self.pipeline_sec.borrow();
+        let pipeline_sec = &self.pipeline_sec.borrow().pipeline;
 
         let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
@@ -250,9 +237,9 @@ impl State {
             depth_stencil_attachment: None,
         });
 
-        rpass.set_pipeline(&pipeline);
+        rpass.set_pipeline(pipeline);
         rpass.draw(0..3, 0..1);
-        rpass.set_pipeline(&pipeline_sec.pipeline);
+        rpass.set_pipeline(pipeline_sec);
         rpass.draw(0..3, 0..1);
         drop(rpass);
 

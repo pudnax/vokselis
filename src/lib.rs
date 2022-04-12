@@ -63,7 +63,6 @@ pub async fn run(
                 }
             }
             Event::UserEvent((path, module)) => {
-                println!("Received new user event");
                 if let Some(pipeline) = state.hash_dump.get_mut(&path) {
                     let mut pipeline = pipeline.borrow_mut();
                     pipeline.reload(&state.device, module);
