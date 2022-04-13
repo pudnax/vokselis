@@ -38,7 +38,6 @@ pub async fn run(
                 window.request_redraw();
             }
             Event::WindowEvent { event, .. } => {
-                // Boom
                 input.update(&event, &window);
                 match event {
                     WindowEvent::CloseRequested
