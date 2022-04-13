@@ -10,8 +10,8 @@ use color_eyre::eyre::{eyre, Result};
 use wgpu::Instance;
 use winit::{dpi::PhysicalSize, window::Window};
 
-mod screen_space;
-use screen_space::ScreenSpacePipeline;
+mod basic;
+use basic::BasicPipeline;
 
 mod global_ubo;
 
@@ -33,8 +33,8 @@ pub struct State {
 
     timeline: Instant,
 
-    pipeline: Rc<RefCell<ScreenSpacePipeline>>,
-    pipeline_sec: Rc<RefCell<ScreenSpacePipeline>>,
+    pipeline: Rc<RefCell<BasicPipeline>>,
+    pipeline_sec: Rc<RefCell<BasicPipeline>>,
 
     pub global_uniform: Uniform,
     global_uniform_binding: GlobalUniformBinding,
@@ -89,11 +89,11 @@ impl State {
         let mut watcher = Watcher::new(device.clone(), event_loop)?;
 
         let sh1 = Path::new("shaders/shader.wgsl");
-        let pipeline = ScreenSpacePipeline::from_path(&device, surface_format, sh1).wrap();
+        let pipeline = BasicPipeline::from_path(&device, surface_format, sh1).wrap();
         watcher.register(&sh1, pipeline.clone())?;
 
         let sh2 = Path::new("shaders/shader_sec.wgsl");
-        let pipeline_sec = ScreenSpacePipeline::from_path(&device, surface_format, sh2).wrap();
+        let pipeline_sec = BasicPipeline::from_path(&device, surface_format, sh2).wrap();
         watcher.register(&sh2, pipeline_sec.clone())?;
 
         let global_uniform = Uniform::default();

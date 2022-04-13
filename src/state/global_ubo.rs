@@ -83,6 +83,35 @@ impl Uniform {
     pub const SIZE: NonZeroU64 =
         unsafe { NonZeroU64::new_unchecked(std::mem::size_of::<Self>() as _) };
 
+    pub const DESC_RENDER: wgpu::BindGroupLayoutDescriptor<'static> =
+        wgpu::BindGroupLayoutDescriptor {
+            label: Some("Global Uniform Bind Group Layout"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: Some(Uniform::SIZE),
+                },
+                count: None,
+            }],
+        };
+    pub const DESC_COMPUTE: wgpu::BindGroupLayoutDescriptor<'static> =
+        wgpu::BindGroupLayoutDescriptor {
+            label: Some("Global Uniform Bind Group Layout"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::COMPUTE,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: Some(Uniform::SIZE),
+                },
+                count: None,
+            }],
+        };
+
     #[allow(dead_code)]
     pub fn new(
         pos: [f32; 3],

@@ -4,12 +4,12 @@ use crate::watcher::ReloadablePipeline;
 
 use super::global_ubo::{GlobalUniformBinding, Uniform};
 
-pub struct ScreenSpacePipeline {
+pub struct BasicPipeline {
     pub pipeline: wgpu::RenderPipeline,
     surface_format: wgpu::TextureFormat,
 }
 
-impl ScreenSpacePipeline {
+impl BasicPipeline {
     pub fn from_path(
         device: &wgpu::Device,
         surface_format: wgpu::TextureFormat,
@@ -27,20 +27,7 @@ impl ScreenSpacePipeline {
         surface_format: wgpu::TextureFormat,
         shader: &wgpu::ShaderModule,
     ) -> Self {
-        let global_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("Global Uniform Bind Group Layout"),
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT | wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: Some(Uniform::SIZE),
-                    },
-                    count: None,
-                }],
-            });
+        let global_bind_group_layout = device.create_bind_group_layout(&Uniform::DESC_RENDER);
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Screen Pass Layout"),
             bind_group_layouts: &[&global_bind_group_layout],
@@ -71,7 +58,7 @@ impl ScreenSpacePipeline {
     }
 }
 
-impl<'a> ScreenSpacePipeline {
+impl<'a> BasicPipeline {
     pub fn record<'pass>(
         &'a self,
         rpass: &mut wgpu::RenderPass<'pass>,
@@ -85,7 +72,7 @@ impl<'a> ScreenSpacePipeline {
     }
 }
 
-impl ReloadablePipeline for ScreenSpacePipeline {
+impl ReloadablePipeline for BasicPipeline {
     fn reload(&mut self, device: &wgpu::Device, module: &wgpu::ShaderModule) {
         *self = Self::new_with_module(device, self.surface_format, module);
     }
