@@ -7,22 +7,21 @@ use winit::event_loop::EventLoop;
 
 use std::{
     cell::RefCell,
-    collections::HashMap,
     ffi::OsStr,
     path::{Path, PathBuf},
     rc::Rc,
     sync::Arc,
 };
 
-use crate::{shader_compiler::ShaderCompiler, SHADER_FOLDER};
+use crate::{shader_compiler::ShaderCompiler, utils::ContiniousHashMap, SHADER_FOLDER};
 
 pub trait ReloadablePipeline {
-    fn reload(&mut self, device: &wgpu::Device, module: wgpu::ShaderModule);
+    fn reload(&mut self, device: &wgpu::Device, module: &wgpu::ShaderModule);
 }
 
 pub struct Watcher {
     _watcher: notify::RecommendedWatcher,
-    pub hash_dump: HashMap<PathBuf, Rc<RefCell<dyn ReloadablePipeline>>>,
+    pub hash_dump: ContiniousHashMap<PathBuf, Rc<RefCell<dyn ReloadablePipeline>>>,
 }
 
 impl Watcher {
@@ -39,16 +38,17 @@ impl Watcher {
 
         Ok(Self {
             _watcher: watcher,
-            hash_dump: HashMap::new(),
+            hash_dump: ContiniousHashMap::new(),
         })
     }
 
     pub fn register(
         &mut self,
-        path: &Path,
+        path: &impl AsRef<Path>,
         pipeline: Rc<RefCell<dyn ReloadablePipeline>>,
     ) -> Result<()> {
-        self.hash_dump.insert(path.to_path_buf(), pipeline.clone());
+        self.hash_dump
+            .push_value(path.as_ref().canonicalize()?, pipeline.clone());
         Ok(())
     }
 }
@@ -72,13 +72,12 @@ fn watch_callback(
                     .into_iter()
                     .filter(|p| p.extension() == Some(OsStr::new("wgsl")))
                 {
-                    let path = path.canonicalize().expect("Failed to canonicalize path");
                     if let Ok(x) = shader_compiler.create_shader_module(&path) {
                         let device_ref = device.upgrade().unwrap();
                         let module = unsafe {
                             device_ref.create_shader_module_unchecked(
                                 &wgpu::ShaderModuleDescriptor {
-                                    label: None,
+                                    label: path.to_str(),
                                     source: wgpu::ShaderSource::SpirV(x.into()),
                                 },
                             )

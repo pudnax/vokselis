@@ -3,69 +3,25 @@ use std::{
     path::{Path, PathBuf},
     rc::Rc,
     sync::Arc,
+    time::Instant,
 };
 
 use color_eyre::eyre::{eyre, Result};
 use wgpu::Instance;
 use winit::{dpi::PhysicalSize, window::Window};
 
-use crate::{
-    utils::RcWrap,
-    watcher::{ReloadablePipeline, Watcher},
-};
+mod screen_space;
+use screen_space::ScreenSpacePipeline;
 
-struct ScreenSpacePipeline {
-    pipeline: wgpu::RenderPipeline,
-    surface_format: wgpu::TextureFormat,
-}
+mod global_ubo;
 
-impl ScreenSpacePipeline {
-    fn from_path(device: &wgpu::Device, surface_format: wgpu::TextureFormat, path: &Path) -> Self {
-        let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-            label: None,
-            source: wgpu::ShaderSource::Wgsl(std::fs::read_to_string(path).unwrap().into()),
-        });
-        Self::new_with_module(device, surface_format, shader)
-    }
+use crate::{frame_counter::FrameCounter, input::Input, utils::RcWrap, watcher::Watcher};
 
-    fn new_with_module(
-        device: &wgpu::Device,
-        surface_format: wgpu::TextureFormat,
-        shader: wgpu::ShaderModule,
-    ) -> Self {
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
-            layout: None,
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: "fs_main",
-                targets: &[surface_format.into()],
-            }),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: "vs_main",
-                buffers: &[],
-            },
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-        });
-        Self {
-            pipeline,
-            surface_format,
-        }
-    }
-}
-
-impl ReloadablePipeline for ScreenSpacePipeline {
-    fn reload(&mut self, device: &wgpu::Device, module: wgpu::ShaderModule) {
-        *self = Self::new_with_module(device, self.surface_format, module);
-    }
-}
+use global_ubo::GlobalUniformBinding;
+pub use global_ubo::Uniform;
 
 pub struct State {
-    pub watcher: Watcher,
+    watcher: Watcher,
     pub device: Arc<wgpu::Device>,
     pub queue: wgpu::Queue,
     pub surface: wgpu::Surface,
@@ -75,8 +31,13 @@ pub struct State {
     pub width: u32,
     pub height: u32,
 
+    timeline: Instant,
+
     pipeline: Rc<RefCell<ScreenSpacePipeline>>,
     pipeline_sec: Rc<RefCell<ScreenSpacePipeline>>,
+
+    pub global_uniform: Uniform,
+    global_uniform_binding: GlobalUniformBinding,
 }
 
 impl State {
@@ -127,13 +88,16 @@ impl State {
 
         let mut watcher = Watcher::new(device.clone(), event_loop)?;
 
-        let sh1 = Path::new("shaders/shader.wgsl").canonicalize()?;
-        let pipeline = ScreenSpacePipeline::from_path(&device, surface_format, &sh1).wrap();
+        let sh1 = Path::new("shaders/shader.wgsl");
+        let pipeline = ScreenSpacePipeline::from_path(&device, surface_format, sh1).wrap();
         watcher.register(&sh1, pipeline.clone())?;
 
-        let sh2 = Path::new("shaders/shader_sec.wgsl").canonicalize()?;
-        let pipeline_sec = ScreenSpacePipeline::from_path(&device, surface_format, &sh2).wrap();
+        let sh2 = Path::new("shaders/shader_sec.wgsl");
+        let pipeline_sec = ScreenSpacePipeline::from_path(&device, surface_format, sh2).wrap();
         watcher.register(&sh2, pipeline_sec.clone())?;
+
+        let global_uniform = Uniform::default();
+        let global_uniform_binding = GlobalUniformBinding::new(&device);
 
         Ok(Self {
             device,
@@ -145,9 +109,14 @@ impl State {
             width,
             height,
 
+            timeline: Instant::now(),
+
             pipeline,
             pipeline_sec,
             watcher,
+
+            global_uniform,
+            global_uniform_binding,
         })
     }
 
@@ -169,32 +138,51 @@ impl State {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
 
-        let pipeline = &self.pipeline.borrow().pipeline;
-        let pipeline_sec = &self.pipeline_sec.borrow().pipeline;
+        let pipeline = self.pipeline.borrow();
+        let pipeline_sec = self.pipeline_sec.borrow();
 
-        let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: None,
-            color_attachments: &[wgpu::RenderPassColorAttachment {
-                view: &frame_view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                    store: true,
-                },
-            }],
-            depth_stencil_attachment: None,
-        });
+        {
+            let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Present Pass"),
+                color_attachments: &[wgpu::RenderPassColorAttachment {
+                    view: &frame_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: true,
+                    },
+                }],
+                depth_stencil_attachment: None,
+            });
 
-        rpass.set_pipeline(pipeline);
-        rpass.draw(0..3, 0..1);
-        rpass.set_pipeline(pipeline_sec);
-        rpass.draw(0..3, 0..1);
-        drop(rpass);
+            pipeline.record(&mut rpass, &self.global_uniform_binding);
+            pipeline_sec.record(&mut rpass, &self.global_uniform_binding);
+        }
 
         self.queue.submit(Some(encoder.finish()));
 
         frame.present();
 
         Ok(())
+    }
+
+    pub fn register_shader_change(&mut self, path: PathBuf, shader: wgpu::ShaderModule) {
+        if let Some(pipelines) = self.watcher.hash_dump.get_mut(&path) {
+            for pipeline in pipelines.iter_mut() {
+                let mut pipeline = pipeline.borrow_mut();
+                pipeline.reload(&self.device, &shader);
+            }
+        }
+    }
+
+    pub fn update(&mut self, frame_counter: &FrameCounter, input: &Input) {
+        self.global_uniform.time = self.timeline.elapsed().as_secs_f32();
+        self.global_uniform.time_delta = frame_counter.time_delta();
+        self.global_uniform.frame = frame_counter.frame_count;
+        self.global_uniform.resolution = [self.width as _, self.height as _];
+        input.process_position(&mut self.global_uniform);
+
+        self.global_uniform_binding
+            .update(&self.queue, &self.global_uniform);
     }
 }

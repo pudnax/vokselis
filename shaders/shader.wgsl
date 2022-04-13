@@ -1,3 +1,16 @@
+struct Uniform {
+    pos: vec3<f32>,
+    frame: u32,
+    resolution: vec2<f32>,
+    mouse: vec2<f32>,
+    mouse_pressed: u32,
+    time: f32,
+    time_delta: f32,
+};
+
+@group(0) @binding(0)
+var<uniform> un: Uniform;
+
 struct VertexOutput {
     @builtin(position) pos: vec4<f32>,
 };
@@ -18,5 +31,6 @@ fn vs_main(@builtin(vertex_index) vertex_idx: u32) -> VertexOutput {
 
 @stage(fragment)
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return vec4<f32>(1., 1., 1., 1.);
+    var t = fract(un.time);
+    return vec4<f32>(t, f32(un.mouse_pressed), 1., 1.);
 }
