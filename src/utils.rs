@@ -62,3 +62,30 @@ impl<K: Eq + Hash, V> ContiniousHashMap<K, V> {
         self.0.entry(key).or_insert_with(Vec::new).push(value);
     }
 }
+
+#[derive(Debug, Clone, Copy)]
+pub struct ImageDimentions {
+    pub width: u32,
+    pub height: u32,
+    pub unpadded_bytes_per_row: u32,
+    pub padded_bytes_per_row: u32,
+}
+
+impl ImageDimentions {
+    pub fn new(width: u32, height: u32, align: u32) -> Self {
+        let bytes_per_pixel = std::mem::size_of::<[u8; 4]>() as u32;
+        let unpadded_bytes_per_row = width * bytes_per_pixel;
+        let row_padding = (align - unpadded_bytes_per_row % align) % align;
+        let padded_bytes_per_row = unpadded_bytes_per_row + row_padding;
+        Self {
+            width,
+            height,
+            unpadded_bytes_per_row,
+            padded_bytes_per_row,
+        }
+    }
+
+    pub fn linear_size(&self) -> u64 {
+        self.padded_bytes_per_row as u64 * self.height as u64
+    }
+}

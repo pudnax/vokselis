@@ -27,7 +27,7 @@ impl BasicPipeline {
         surface_format: wgpu::TextureFormat,
         shader: &wgpu::ShaderModule,
     ) -> Self {
-        let global_bind_group_layout = device.create_bind_group_layout(&Uniform::DESC_RENDER);
+        let global_bind_group_layout = device.create_bind_group_layout(&Uniform::DESC);
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Screen Pass Layout"),
             bind_group_layouts: &[&global_bind_group_layout],
