@@ -80,10 +80,7 @@ impl PresentPipeline {
             },
             primitive: wgpu::PrimitiveState::default(),
             depth_stencil: None,
-            multisample: wgpu::MultisampleState {
-                count: 4,
-                ..Default::default()
-            },
+            multisample: wgpu::MultisampleState::default(),
             multiview: None,
         });
 

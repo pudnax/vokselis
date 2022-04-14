@@ -89,38 +89,3 @@ impl ImageDimentions {
         self.padded_bytes_per_row as u64 * self.height as u64
     }
 }
-
-pub struct MultisampleFramebuffers {
-    pub bgra: wgpu::TextureView,
-    pub rgba: wgpu::TextureView,
-}
-
-impl MultisampleFramebuffers {
-    pub fn new(device: &wgpu::Device, config: &wgpu::SurfaceConfiguration) -> Self {
-        let size = wgpu::Extent3d {
-            width: config.width,
-            height: config.height,
-            depth_or_array_layers: 1,
-        };
-        let mut multisampled_frame_descriptor = wgpu::TextureDescriptor {
-            label: Some("Multisample Framebuffer"),
-            format: config.format,
-            size,
-            mip_level_count: 1,
-            sample_count: 4,
-            dimension: wgpu::TextureDimension::D2,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-        };
-
-        let bgra = device
-            .create_texture(&multisampled_frame_descriptor)
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
-        multisampled_frame_descriptor.format = wgpu::TextureFormat::Rgba8Unorm;
-        let rgba = device
-            .create_texture(&multisampled_frame_descriptor)
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
-        Self { bgra, rgba }
-    }
-}

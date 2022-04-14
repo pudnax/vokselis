@@ -23,7 +23,7 @@ use present::PresentPipeline;
 use crate::{
     frame_counter::FrameCounter,
     input::Input,
-    utils::{MultisampleFramebuffers, RcWrap},
+    utils::RcWrap,
     watcher::{ReloadablePipeline, Watcher},
 };
 
@@ -38,9 +38,9 @@ pub struct State {
     pub surface: wgpu::Surface,
     pub surface_config: wgpu::SurfaceConfiguration,
     pub surface_format: wgpu::TextureFormat,
-    multisampled_framebuffers: MultisampleFramebuffers,
 
     render_backbuffer: HdrBackBuffer,
+    multisampled_framebuffer: wgpu::TextureView,
 
     rgb_texture: wgpu::Texture,
 
@@ -101,8 +101,6 @@ impl State {
         };
         surface.configure(&device, &surface_config);
 
-        let multisampled_framebuffers = MultisampleFramebuffers::new(&device, &surface_config);
-
         let mut watcher = Watcher::new(device.clone(), event_loop)?;
 
         let sh1 = Path::new("shaders/shader.wgsl");
@@ -118,6 +116,12 @@ impl State {
             PresentPipeline::from_path(&device, surface_format, present_shader).wrap();
         watcher.register(&present_shader, present_pipeline.clone())?;
 
+        let multisampled_framebuffer = create_multisampled_framebuffer(
+            &device,
+            HdrBackBuffer::FORMAT,
+            (surface_config.width, surface_config.height),
+        );
+
         let global_uniform = Uniform::default();
         let global_uniform_binding = GlobalUniformBinding::new(&device);
 
@@ -131,7 +135,8 @@ impl State {
             surface,
             surface_config,
             surface_format,
-            multisampled_framebuffers,
+
+            multisampled_framebuffer,
 
             rgb_texture,
 
@@ -160,8 +165,11 @@ impl State {
         self.surface_config.width = width;
         self.surface.configure(&self.device, &self.surface_config);
 
-        self.multisampled_framebuffers =
-            MultisampleFramebuffers::new(&self.device, &self.surface_config);
+        self.multisampled_framebuffer = create_multisampled_framebuffer(
+            &self.device,
+            HdrBackBuffer::FORMAT,
+            (self.surface_config.width, self.surface_config.height),
+        );
         self.rgb_texture = create_rgb_framebuffer(&self.device, &self.surface_config);
     }
 
@@ -181,8 +189,8 @@ impl State {
         let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Drawing Pass"),
             color_attachments: &[wgpu::RenderPassColorAttachment {
-                view: &self.render_backbuffer.texture_view,
-                resolve_target: None,
+                view: &self.multisampled_framebuffer,
+                resolve_target: Some(&self.render_backbuffer.texture_view),
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                     store: true,
@@ -201,16 +209,16 @@ impl State {
             label: Some("Present Pass"),
             color_attachments: &[
                 wgpu::RenderPassColorAttachment {
-                    view: &self.multisampled_framebuffers.bgra,
-                    resolve_target: Some(&frame_view),
+                    view: &&frame_view,
+                    resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: false,
+                        store: true,
                     },
                 },
                 wgpu::RenderPassColorAttachment {
-                    view: &self.multisampled_framebuffers.rgba,
-                    resolve_target: Some(&rgb),
+                    view: &rgb,
+                    resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                         store: true,
@@ -314,6 +322,28 @@ impl Display for RendererInfo {
         write!(f, "Screen format: {:?}", self.screen_format)?;
         Ok(())
     }
+}
+
+fn create_multisampled_framebuffer(
+    device: &wgpu::Device,
+    format: wgpu::TextureFormat,
+    (width, height): (u32, u32),
+) -> wgpu::TextureView {
+    device
+        .create_texture(&wgpu::TextureDescriptor {
+            label: Some("Mult 16"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 4,
+            dimension: wgpu::TextureDimension::D2,
+            format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+        })
+        .create_view(&Default::default())
 }
 
 fn create_rgb_framebuffer(
