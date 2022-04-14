@@ -18,6 +18,7 @@ mod present;
 
 use basic::BasicPipeline;
 use hdr_backbuffer::HdrBackBuffer;
+use present::PresentPipeline;
 
 use crate::{
     frame_counter::FrameCounter,
@@ -28,8 +29,6 @@ use crate::{
 
 use global_ubo::GlobalUniformBinding;
 pub use global_ubo::Uniform;
-
-use self::present::PresentPipeline;
 
 pub struct State {
     watcher: Watcher,
