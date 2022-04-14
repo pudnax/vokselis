@@ -50,7 +50,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     return FragmentOutput(col, col);
 }
 
-// @stage(fragment)
-// fn fs_main_raw(in: VertexOutput) -> @location(0) vec4<f32> {
-//    return textureSample(src_texture, src_sampler, in.uv);
-// }
+@stage(fragment)
+fn fs_main_raw(in: VertexOutput) -> @location(0) vec4<f32> {
+    return textureSample(src_texture, src_sampler, in.uv);
+}

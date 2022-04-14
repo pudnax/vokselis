@@ -13,13 +13,16 @@ use winit::{dpi::PhysicalSize, window::Window};
 
 mod basic;
 mod global_ubo;
+mod hdr_backbuffer;
 mod present;
+
 use basic::BasicPipeline;
+use hdr_backbuffer::HdrBackBuffer;
 
 use crate::{
     frame_counter::FrameCounter,
     input::Input,
-    utils::RcWrap,
+    utils::{MultisampleFramebuffers, RcWrap},
     watcher::{ReloadablePipeline, Watcher},
 };
 
@@ -27,92 +30,6 @@ use global_ubo::GlobalUniformBinding;
 pub use global_ubo::Uniform;
 
 use self::present::PresentPipeline;
-
-struct HdrBackBuffer {
-    texture: wgpu::Texture,
-    texture_view: wgpu::TextureView,
-
-    render_bind_group: wgpu::BindGroup,
-    storage_bind_group: wgpu::BindGroup,
-}
-
-impl HdrBackBuffer {
-    pub const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
-
-    pub fn new(device: &wgpu::Device, (width, height): (u32, u32)) -> Self {
-        let size = wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        };
-
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("Texture: HdrBackbuffer"),
-            size,
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: Self::FORMAT,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-                | wgpu::TextureUsages::STORAGE_BINDING
-                | wgpu::TextureUsages::TEXTURE_BINDING
-                | wgpu::TextureUsages::COPY_SRC,
-        });
-        let texture_view = texture.create_view(&Default::default());
-
-        let binding_resource = &[wgpu::BindGroupEntry {
-            binding: 0,
-            resource: wgpu::BindingResource::TextureView(&texture_view),
-        }];
-        let render_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("BackBuffer: Render Bind Group Layout"),
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                }],
-            });
-        let render_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("BackBuffer: Render Bind Group"),
-            layout: &render_bind_group_layout,
-            entries: binding_resource,
-        });
-
-        let storage_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("BackBuffer: Render Bind Group Layout"),
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::StorageTexture {
-                        access: wgpu::StorageTextureAccess::ReadWrite,
-                        format: Self::FORMAT,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                    },
-                    count: None,
-                }],
-            });
-        let storage_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("BackBuffer: Render Bind Group"),
-            layout: &storage_bind_group_layout,
-            entries: binding_resource,
-        });
-
-        Self {
-            texture,
-            texture_view,
-
-            render_bind_group,
-            storage_bind_group,
-        }
-    }
-}
 
 pub struct State {
     watcher: Watcher,
@@ -161,9 +78,7 @@ impl State {
 
         let features = adapter.features();
         let limits = adapter.limits();
-        let surface_format = surface
-            .get_preferred_format(&adapter)
-            .unwrap_or(wgpu::TextureFormat::Bgra8Unorm);
+        let surface_format = wgpu::TextureFormat::Bgra8Unorm;
 
         let (device, queue) = adapter
             .request_device(
@@ -264,56 +179,54 @@ impl State {
         let pipeline = self.pipeline.borrow();
         let pipeline_sec = self.pipeline_sec.borrow();
 
-        {
-            let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Drawing Pass"),
-                color_attachments: &[wgpu::RenderPassColorAttachment {
-                    view: &self.render_backbuffer.texture_view,
-                    resolve_target: None,
+        let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Drawing Pass"),
+            color_attachments: &[wgpu::RenderPassColorAttachment {
+                view: &self.render_backbuffer.texture_view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: true,
+                },
+            }],
+            depth_stencil_attachment: None,
+        });
+
+        pipeline.record(&mut rpass, &self.global_uniform_binding);
+        pipeline_sec.record(&mut rpass, &self.global_uniform_binding);
+        drop(rpass);
+
+        let present_pipeline = self.present_pipeline.borrow();
+        let rgb = self.rgb_texture.create_view(&Default::default());
+        let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Present Pass"),
+            color_attachments: &[
+                wgpu::RenderPassColorAttachment {
+                    view: &self.multisampled_framebuffers.bgra,
+                    resolve_target: Some(&frame_view),
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: false,
+                    },
+                },
+                wgpu::RenderPassColorAttachment {
+                    view: &self.multisampled_framebuffers.rgba,
+                    resolve_target: Some(&rgb),
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                         store: true,
                     },
-                }],
-                depth_stencil_attachment: None,
-            });
+                },
+            ],
+            depth_stencil_attachment: None,
+        });
 
-            pipeline.record(&mut rpass, &self.global_uniform_binding);
-            pipeline_sec.record(&mut rpass, &self.global_uniform_binding);
-        }
-
-        let present_pipeline = self.present_pipeline.borrow();
-        {
-            let rgb = self.rgb_texture.create_view(&Default::default());
-            let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Present Pass"),
-                color_attachments: &[
-                    wgpu::RenderPassColorAttachment {
-                        view: &self.multisampled_framebuffers.bgra,
-                        resolve_target: Some(&frame_view),
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                            store: true,
-                        },
-                    },
-                    wgpu::RenderPassColorAttachment {
-                        view: &self.multisampled_framebuffers.rgba,
-                        resolve_target: Some(&rgb),
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                            store: true,
-                        },
-                    },
-                ],
-                depth_stencil_attachment: None,
-            });
-
-            present_pipeline.record(
-                &mut rpass,
-                &self.global_uniform_binding,
-                &self.render_backbuffer.render_bind_group,
-            );
-        }
+        present_pipeline.record(
+            &mut rpass,
+            &self.global_uniform_binding,
+            &self.render_backbuffer.render_bind_group,
+        );
+        drop(rpass);
 
         self.queue.submit(Some(encoder.finish()));
 
@@ -401,41 +314,6 @@ impl Display for RendererInfo {
         writeln!(f, "Backend: {}", self.backend)?;
         write!(f, "Screen format: {:?}", self.screen_format)?;
         Ok(())
-    }
-}
-
-struct MultisampleFramebuffers {
-    bgra: wgpu::TextureView,
-    rgba: wgpu::TextureView,
-}
-
-impl MultisampleFramebuffers {
-    pub fn new(device: &wgpu::Device, config: &wgpu::SurfaceConfiguration) -> Self {
-        let size = wgpu::Extent3d {
-            width: config.width,
-            height: config.height,
-            depth_or_array_layers: 1,
-        };
-        let mut multisampled_frame_descriptor = wgpu::TextureDescriptor {
-            label: Some("Multisample Framebuffer"),
-            format: config.format,
-            size,
-            mip_level_count: 1,
-            sample_count: 4,
-            dimension: wgpu::TextureDimension::D2,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-        };
-
-        let bgra = device
-            .create_texture(&multisampled_frame_descriptor)
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
-        multisampled_frame_descriptor.format = wgpu::TextureFormat::Rgba8Unorm;
-        let rgba = device
-            .create_texture(&multisampled_frame_descriptor)
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
-        Self { bgra, rgba }
     }
 }
 
