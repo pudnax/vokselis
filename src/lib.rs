@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 mod frame_counter;
 mod input;
@@ -25,6 +25,8 @@ pub async fn run(
     window: Window,
 ) -> Result<()> {
     let mut state = state::State::new(&window, &event_loop).block_on()?;
+
+    print_help(state.get_info());
 
     let mut frame_counter = FrameCounter::new();
     let mut input = Input::new();
@@ -80,7 +82,35 @@ pub async fn run(
                 }
             }
             Event::UserEvent((path, shader)) => state.register_shader_change(path, shader),
+            Event::LoopDestroyed => {
+                println!("\n// End from the loop. Bye bye~⏎ ");
+            }
             _ => {}
         }
     })
+}
+
+pub fn print_help(info: impl std::fmt::Display) {
+    println!("{}", info);
+    // println!("{}", ffmpeg_version);
+    println!(
+        "Default shader path:\n\t{}\n",
+        Path::new(SHADER_FOLDER).canonicalize().unwrap().display()
+    );
+    // println!("\n- `F1`:   Print help");
+    // println!("- `F2`:   Toggle play/pause");
+    // println!("- `F3`:   Pause and step back one frame");
+    // println!("- `F4`:   Pause and step forward one frame");
+    // println!("- `F5`:   Restart playback at frame 0 (`Time` and `Pos` = 0)");
+    // println!("- `F6`:   Print parameters");
+    // println!("- `F7`:   Toggle profiler");
+    // println!("- `F8`:   Switch backend");
+    // println!("- `F10`:  Save shaders");
+    // println!("- `F11`:  Take Screenshot");
+    // println!("- `F12`:  Start/Stop record video");
+    // println!("- `ESC`:  Exit the application");
+    // println!("- `Arrows`: Change `Pos`\n");
+    println!("// Set up our new world⏎ ");
+    println!("// And let's begin the⏎ ");
+    println!("\tSIMULATION⏎ \n");
 }
