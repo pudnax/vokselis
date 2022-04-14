@@ -19,6 +19,8 @@ pub fn green_blink() {
     });
 }
 
+pub(crate) type PipelineHandle<T> = Rc<RefCell<T>>;
+
 pub(crate) trait RcWrap: Sized {
     fn wrap(self) -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(self))

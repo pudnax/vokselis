@@ -19,6 +19,12 @@ pub trait ReloadablePipeline {
     fn reload(&mut self, device: &wgpu::Device, module: &wgpu::ShaderModule);
 }
 
+impl ReloadablePipeline for Rc<RefCell<dyn ReloadablePipeline>> {
+    fn reload(&mut self, device: &wgpu::Device, module: &wgpu::ShaderModule) {
+        self.borrow_mut().reload(&device, &module);
+    }
+}
+
 pub struct Watcher {
     _watcher: notify::RecommendedWatcher,
     pub hash_dump: ContiniousHashMap<PathBuf, Rc<RefCell<dyn ReloadablePipeline>>>,

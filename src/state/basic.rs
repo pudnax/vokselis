@@ -10,16 +10,12 @@ pub struct BasicPipeline {
 }
 
 impl BasicPipeline {
-    pub fn from_path(
-        device: &wgpu::Device,
-        surface_format: wgpu::TextureFormat,
-        path: &Path,
-    ) -> Self {
+    pub fn from_path(device: &wgpu::Device, format: wgpu::TextureFormat, path: &Path) -> Self {
         let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
             label: path.to_str(),
             source: wgpu::ShaderSource::Wgsl(std::fs::read_to_string(path).unwrap().into()),
         });
-        Self::new_with_module(device, surface_format, &shader)
+        Self::new_with_module(device, format, &shader)
     }
 
     pub fn new_with_module(
