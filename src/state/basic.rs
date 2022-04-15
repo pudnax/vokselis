@@ -45,7 +45,7 @@ impl BasicPipeline {
             primitive: wgpu::PrimitiveState::default(),
             depth_stencil: None,
             multisample: wgpu::MultisampleState {
-                count: 4,
+                count: 1,
                 ..Default::default()
             },
             multiview: None,
