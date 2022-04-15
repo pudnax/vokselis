@@ -1,3 +1,5 @@
 /target
 naga
 *.cap
+/recordings
+/screenshots

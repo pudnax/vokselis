@@ -8,6 +8,7 @@ use std::{
 };
 
 use color_eyre::eyre::{eyre, Result};
+use pollster::FutureExt;
 use wgpu::Instance;
 use winit::{dpi::PhysicalSize, window::Window};
 
@@ -15,6 +16,7 @@ mod basic;
 mod global_ubo;
 mod hdr_backbuffer;
 mod present;
+mod screenshot;
 
 use basic::BasicPipeline;
 use hdr_backbuffer::HdrBackBuffer;
@@ -22,13 +24,15 @@ use present::PresentPipeline;
 
 use crate::{
     utils::frame_counter::FrameCounter,
-    utils::input::Input,
     utils::RcWrap,
+    utils::{input::Input, ImageDimentions},
     watcher::{ReloadablePipeline, Watcher},
 };
 
 use global_ubo::GlobalUniformBinding;
 pub use global_ubo::Uniform;
+
+use self::screenshot::ScreenshotCtx;
 
 pub struct State {
     watcher: Watcher,
@@ -38,6 +42,8 @@ pub struct State {
     pub surface: wgpu::Surface,
     pub surface_config: wgpu::SurfaceConfiguration,
     pub surface_format: wgpu::TextureFormat,
+
+    pub screenshot_ctx: screenshot::ScreenshotCtx,
 
     render_backbuffer: HdrBackBuffer,
 
@@ -102,6 +108,15 @@ impl State {
 
         let mut watcher = Watcher::new(device.clone(), event_loop)?;
 
+        let global_uniform = Uniform::default();
+        let global_uniform_binding = GlobalUniformBinding::new(&device);
+
+        let render_backbuffer = HdrBackBuffer::new(&device, (width, height));
+        let rgb_texture = create_rgb_framebuffer(&device, &surface_config);
+
+        let screenshot_ctx =
+            ScreenshotCtx::new(&device, surface_config.width, surface_config.height);
+
         let sh1 = Path::new("shaders/shader.wgsl");
         let pipeline = BasicPipeline::from_path(&device, HdrBackBuffer::FORMAT, sh1).wrap();
         watcher.register(&sh1, pipeline.clone())?;
@@ -115,12 +130,6 @@ impl State {
             PresentPipeline::from_path(&device, surface_format, present_shader).wrap();
         watcher.register(&present_shader, present_pipeline.clone())?;
 
-        let global_uniform = Uniform::default();
-        let global_uniform_binding = GlobalUniformBinding::new(&device);
-
-        let render_backbuffer = HdrBackBuffer::new(&device, (width, height));
-        let rgb_texture = create_rgb_framebuffer(&device, &surface_config);
-
         Ok(Self {
             adapter,
             device,
@@ -128,6 +137,8 @@ impl State {
             surface,
             surface_config,
             surface_format,
+
+            screenshot_ctx,
 
             rgb_texture,
 
@@ -156,12 +167,7 @@ impl State {
         self.surface_config.width = width;
         self.surface.configure(&self.device, &self.surface_config);
 
-        // self.multisampled_framebuffer = create_multisampled_framebuffer(
-        //     &self.device,
-        //     HdrBackBuffer::FORMAT,
-        //     (self.surface_config.width, self.surface_config.height),
-        // );
-        // self.mult_pair = MultPair::new(&self.device, &self.surface_config);
+        self.screenshot_ctx.resize(&self.device, width, height);
         self.rgb_texture = create_rgb_framebuffer(&self.device, &self.surface_config);
     }
 
@@ -232,6 +238,12 @@ impl State {
         frame.present();
 
         Ok(())
+    }
+
+    pub fn capture_frame(&self) -> (Vec<u8>, ImageDimentions) {
+        self.screenshot_ctx
+            .capture_frame(&self.device, &self.queue, &self.rgb_texture)
+            .block_on()
     }
 
     pub fn register_shader_change(&mut self, path: PathBuf, shader: wgpu::ShaderModule) {
@@ -315,61 +327,6 @@ impl Display for RendererInfo {
         Ok(())
     }
 }
-
-// struct MultPair {
-//     bgra: wgpu::TextureView,
-//     rgba: wgpu::TextureView,
-// }
-
-// impl MultPair {
-//     fn new(device: &wgpu::Device, config: &wgpu::SurfaceConfiguration) -> Self {
-//         let size = wgpu::Extent3d {
-//             width: config.width,
-//             height: config.height,
-//             depth_or_array_layers: 1,
-//         };
-//         let mut desc = wgpu::TextureDescriptor {
-//             label: Some("Mult bgra,rgba"),
-//             size,
-//             mip_level_count: 1,
-//             sample_count: 4,
-//             dimension: wgpu::TextureDimension::D2,
-//             format: wgpu::TextureFormat::Bgra8Unorm,
-//             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-//         };
-
-//         let bgra = device
-//             .create_texture(&desc)
-//             .create_view(&Default::default());
-//         desc.format = wgpu::TextureFormat::Rgba8Unorm;
-//         let rgba = device
-//             .create_texture(&desc)
-//             .create_view(&Default::default());
-//         Self { bgra, rgba }
-//     }
-// }
-
-// fn create_multisampled_framebuffer(
-//     device: &wgpu::Device,
-//     format: wgpu::TextureFormat,
-//     (width, height): (u32, u32),
-// ) -> wgpu::TextureView {
-//     device
-//         .create_texture(&wgpu::TextureDescriptor {
-//             label: Some("Mult 16"),
-//             size: wgpu::Extent3d {
-//                 width,
-//                 height,
-//                 depth_or_array_layers: 1,
-//             },
-//             mip_level_count: 1,
-//             sample_count: 4,
-//             dimension: wgpu::TextureDimension::D2,
-//             format,
-//             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-//         })
-//         .create_view(&Default::default())
-// }
 
 fn create_rgb_framebuffer(
     device: &wgpu::Device,

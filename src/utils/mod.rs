@@ -2,14 +2,29 @@ use std::{
     cell::RefCell,
     collections::HashMap,
     hash::Hash,
-    io::Write,
+    io::{self, Write},
     ops::{Deref, DerefMut},
+    path::Path,
     rc::Rc,
 };
 
 pub mod frame_counter;
 pub mod input;
+pub mod recorder;
 pub mod shader_compiler;
+
+const SCREENSHOTS_FOLDER: &str = "screenshots";
+pub const VIDEO_FOLDER: &str = "recordings";
+
+pub fn create_folder<P: AsRef<Path>>(name: P) -> io::Result<()> {
+    match std::fs::create_dir(name) {
+        Ok(_) => {}
+        Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {}
+        Err(e) => return Err(e),
+    }
+
+    Ok(())
+}
 
 pub fn green_blink() {
     const ESC: &str = "\x1B[";
@@ -77,6 +92,8 @@ pub struct ImageDimentions {
 
 impl ImageDimentions {
     pub fn new(width: u32, height: u32, align: u32) -> Self {
+        let height = height.saturating_sub(height % 2);
+        let width = width.saturating_sub(width % 2);
         let bytes_per_pixel = std::mem::size_of::<[u8; 4]>() as u32;
         let unpadded_bytes_per_row = width * bytes_per_pixel;
         let row_padding = (align - unpadded_bytes_per_row % align) % align;

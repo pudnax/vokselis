@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 mod state;
 mod utils;
@@ -6,8 +7,8 @@ mod watcher;
 
 use color_eyre::eyre::Result;
 use pollster::FutureExt;
-use utils::frame_counter::FrameCounter;
 use utils::input::Input;
+use utils::{frame_counter::FrameCounter, recorder::RecordEvent};
 use winit::{
     dpi::PhysicalSize,
     event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
@@ -23,7 +24,10 @@ pub async fn run(
 ) -> Result<()> {
     let mut state = state::State::new(&window, &event_loop).block_on()?;
 
-    print_help(state.get_info());
+    let mut recording_status = false;
+    let recorder = utils::recorder::Recorder::new();
+
+    print_help(state.get_info(), &recorder.ffmpeg_version);
 
     let mut frame_counter = FrameCounter::new();
     let mut input = Input::new();
@@ -58,6 +62,39 @@ pub async fn run(
                         if width != 0 && height != 0 {
                             state.resize(width, height);
                         }
+
+                        if recording_status {
+                            println!("Stop recording. Resolution has been changed.",);
+                            recording_status = false;
+                            recorder.send(RecordEvent::Finish);
+                        }
+                    }
+
+                    WindowEvent::KeyboardInput {
+                        input:
+                            KeyboardInput {
+                                state: ElementState::Pressed,
+                                virtual_keycode: Some(keycode),
+                                ..
+                            },
+                        ..
+                    } => {
+                        if VirtualKeyCode::F11 == keycode {
+                            let now = Instant::now();
+                            let frame = state.capture_frame();
+                            eprintln!("Capture image: {:#.2?}", now.elapsed());
+                            recorder.send(RecordEvent::Screenshot(frame));
+                        }
+                        if VirtualKeyCode::F12 == keycode {
+                            if recording_status {
+                                recorder.send(RecordEvent::Finish);
+                            } else {
+                                recorder.send(RecordEvent::Start(dbg!(
+                                    state.screenshot_ctx.image_dimentions
+                                )));
+                            }
+                            recording_status = !recording_status;
+                        }
                     }
 
                     _ => {}
@@ -77,6 +114,11 @@ pub async fn run(
                         window.request_redraw();
                     }
                 }
+
+                if recording_status {
+                    let (frame, _) = state.capture_frame();
+                    recorder.send(RecordEvent::Record(frame));
+                }
             }
             Event::UserEvent((path, shader)) => state.register_shader_change(path, shader),
             Event::LoopDestroyed => {
@@ -87,9 +129,9 @@ pub async fn run(
     })
 }
 
-pub fn print_help(info: impl std::fmt::Display) {
+pub fn print_help(info: impl std::fmt::Display, ffmpeg_version: &str) {
     println!("{}", info);
-    // println!("{}", ffmpeg_version);
+    println!("{}", ffmpeg_version);
     println!(
         "Default shader path:\n\t{}\n",
         Path::new(SHADER_FOLDER).canonicalize().unwrap().display()
@@ -103,10 +145,11 @@ pub fn print_help(info: impl std::fmt::Display) {
     // println!("- `F7`:   Toggle profiler");
     // println!("- `F8`:   Switch backend");
     // println!("- `F10`:  Save shaders");
-    // println!("- `F11`:  Take Screenshot");
-    // println!("- `F12`:  Start/Stop record video");
-    // println!("- `ESC`:  Exit the application");
-    // println!("- `Arrows`: Change `Pos`\n");
+    println!("- `F11`:  Take Screenshot");
+    println!("- `F12`:  Start/Stop record video");
+    println!("- `ESC`:  Exit the application");
+    // println!("- `Arrows`: Change `Pos`");
+    println!();
     println!("// Set up our new world⏎ ");
     println!("// And let's begin the⏎ ");
     println!("\tSIMULATION⏎ \n");
