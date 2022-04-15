@@ -7,6 +7,10 @@ use std::{
     rc::Rc,
 };
 
+pub mod frame_counter;
+pub mod input;
+pub mod shader_compiler;
+
 pub fn green_blink() {
     const ESC: &str = "\x1B[";
     const RESET: &str = "\x1B[0m";

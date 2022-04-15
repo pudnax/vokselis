@@ -1,16 +1,13 @@
 use std::path::{Path, PathBuf};
 
-mod frame_counter;
-mod input;
-mod shader_compiler;
 mod state;
 mod utils;
 mod watcher;
 
 use color_eyre::eyre::Result;
-use frame_counter::FrameCounter;
-use input::Input;
 use pollster::FutureExt;
+use utils::frame_counter::FrameCounter;
+use utils::input::Input;
 use winit::{
     dpi::PhysicalSize,
     event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},

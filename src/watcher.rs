@@ -13,7 +13,8 @@ use std::{
     sync::Arc,
 };
 
-use crate::{shader_compiler::ShaderCompiler, utils::ContiniousHashMap, SHADER_FOLDER};
+use crate::utils::{shader_compiler::ShaderCompiler, ContiniousHashMap};
+use crate::SHADER_FOLDER;
 
 pub trait ReloadablePipeline {
     fn reload(&mut self, device: &wgpu::Device, module: &wgpu::ShaderModule);
@@ -21,7 +22,7 @@ pub trait ReloadablePipeline {
 
 impl ReloadablePipeline for Rc<RefCell<dyn ReloadablePipeline>> {
     fn reload(&mut self, device: &wgpu::Device, module: &wgpu::ShaderModule) {
-        self.borrow_mut().reload(&device, &module);
+        self.borrow_mut().reload(device, module);
     }
 }
 

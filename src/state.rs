@@ -21,8 +21,8 @@ use hdr_backbuffer::HdrBackBuffer;
 use present::PresentPipeline;
 
 use crate::{
-    frame_counter::FrameCounter,
-    input::Input,
+    utils::frame_counter::FrameCounter,
+    utils::input::Input,
     utils::RcWrap,
     watcher::{ReloadablePipeline, Watcher},
 };
@@ -209,7 +209,7 @@ impl State {
             label: Some("Present Pass"),
             color_attachments: &[
                 wgpu::RenderPassColorAttachment {
-                    view: &&frame_view,
+                    view: &frame_view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
