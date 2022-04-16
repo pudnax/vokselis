@@ -39,7 +39,7 @@ impl ScreenshotCtx {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         src_texture: &wgpu::Texture,
-    ) -> (Vec<u8>, ImageDimentions) {
+    ) -> Result<(Vec<u8>, ImageDimentions), wgpu::BufferAsyncError> {
         // puffin::profile_function!();
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Capture Encoder"),
@@ -70,15 +70,12 @@ impl ScreenshotCtx {
         let map_future = image_slice.map_async(MapMode::Read);
 
         device.poll(wgpu::Maintain::Wait);
-        if let Ok(()) = map_future.await {}
+        map_future.await.map(|_| {
+            let frame = image_slice.get_mapped_range().to_vec();
+            self.data.unmap();
 
-        let mapped_slice = image_slice.get_mapped_range();
-        let frame = mapped_slice.to_vec();
-
-        drop(mapped_slice);
-        self.data.unmap();
-
-        (frame, self.image_dimentions)
+            (frame, self.image_dimentions)
+        })
     }
 }
 

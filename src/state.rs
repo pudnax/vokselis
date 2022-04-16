@@ -244,6 +244,7 @@ impl State {
         self.screenshot_ctx
             .capture_frame(&self.device, &self.queue, &self.rgb_texture)
             .block_on()
+            .unwrap()
     }
 
     pub fn register_shader_change(&mut self, path: PathBuf, shader: wgpu::ShaderModule) {
