@@ -13,9 +13,6 @@ pub mod input;
 pub mod recorder;
 pub mod shader_compiler;
 
-const SCREENSHOTS_FOLDER: &str = "screenshots";
-pub const VIDEO_FOLDER: &str = "recordings";
-
 pub fn create_folder<P: AsRef<Path>>(name: P) -> io::Result<()> {
     match std::fs::create_dir(name) {
         Ok(_) => {}

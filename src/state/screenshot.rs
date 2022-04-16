@@ -10,8 +10,6 @@ pub struct ScreenshotCtx {
 
 impl ScreenshotCtx {
     pub fn resize(&mut self, device: &Device, width: u32, height: u32) {
-        dbg!(width);
-        dbg!(height);
         // puffin::profile_function!();
         let new_dims = ImageDimentions::new(width, height, wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
         if new_dims.linear_size() > self.image_dimentions.linear_size() {

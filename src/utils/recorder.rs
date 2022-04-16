@@ -13,7 +13,7 @@ use std::os::windows::process::CommandExt;
 
 use super::ImageDimentions;
 
-use crate::utils::{create_folder, SCREENSHOTS_FOLDER, VIDEO_FOLDER};
+use crate::{utils::create_folder, SCREENSHOTS_FOLDER, VIDEO_FOLDER};
 
 pub enum RecordEvent {
     Start(ImageDimentions),
@@ -53,6 +53,10 @@ impl Recorder {
             ffmpeg_installed: installed,
             ffmpeg_version: version,
         }
+    }
+
+    pub fn ffmpeg_installed(&self) -> bool {
+        self.ffmpeg_installed
     }
 
     pub fn send(&self, event: RecordEvent) {

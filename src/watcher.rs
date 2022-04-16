@@ -82,10 +82,10 @@ fn watch_callback(
                     if let Ok(x) = shader_compiler.create_shader_module(&path) {
                         let device_ref = device.upgrade().unwrap();
                         let module = unsafe {
-                            device_ref.create_shader_module_unchecked(
-                                &wgpu::ShaderModuleDescriptor {
+                            device_ref.create_shader_module_spirv(
+                                &wgpu::ShaderModuleDescriptorSpirV {
                                     label: path.to_str(),
-                                    source: wgpu::ShaderSource::SpirV(x.into()),
+                                    source: x.into(),
                                 },
                             )
                         };

@@ -17,6 +17,8 @@ use winit::{
 };
 
 const SHADER_FOLDER: &str = "shaders";
+const SCREENSHOTS_FOLDER: &str = "screenshots";
+const VIDEO_FOLDER: &str = "recordings";
 
 pub async fn run(
     event_loop: EventLoop<(PathBuf, wgpu::ShaderModule)>,
@@ -85,13 +87,13 @@ pub async fn run(
                             eprintln!("Capture image: {:#.2?}", now.elapsed());
                             recorder.send(RecordEvent::Screenshot(frame));
                         }
-                        if VirtualKeyCode::F12 == keycode {
-                            if recording_status {
-                                recorder.send(RecordEvent::Finish);
+                        if recorder.ffmpeg_installed() && VirtualKeyCode::F12 == keycode {
+                            if !recording_status {
+                                recorder.send(RecordEvent::Start(
+                                    state.screenshot_ctx.image_dimentions,
+                                ));
                             } else {
-                                recorder.send(RecordEvent::Start(dbg!(
-                                    state.screenshot_ctx.image_dimentions
-                                )));
+                                recorder.send(RecordEvent::Finish);
                             }
                             recording_status = !recording_status;
                         }
