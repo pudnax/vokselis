@@ -1,6 +1,5 @@
 use std::{
     cell::RefCell,
-    fmt::Display,
     path::{Path, PathBuf},
     rc::Rc,
     sync::Arc,
@@ -8,11 +7,13 @@ use std::{
 };
 
 use color_eyre::eyre::{eyre, Result};
+use glam::Vec3;
 use pollster::FutureExt;
 use wgpu::Instance;
 use winit::{dpi::PhysicalSize, window::Window};
 
 mod basic;
+mod basic_with_camera;
 mod global_ubo;
 mod hdr_backbuffer;
 mod present;
@@ -23,6 +24,7 @@ use hdr_backbuffer::HdrBackBuffer;
 use present::PresentPipeline;
 
 use crate::{
+    camera::{Camera, CameraBinding},
     utils::frame_counter::FrameCounter,
     utils::RcWrap,
     utils::{input::Input, ImageDimentions},
@@ -45,6 +47,9 @@ pub struct State {
 
     pub screenshot_ctx: screenshot::ScreenshotCtx,
 
+    pub camera: Camera,
+    camera_binding: CameraBinding,
+
     render_backbuffer: HdrBackBuffer,
 
     rgb_texture: wgpu::Texture,
@@ -54,7 +59,7 @@ pub struct State {
 
     timeline: Instant,
 
-    pipeline: Rc<RefCell<BasicPipeline>>,
+    pipeline: Rc<RefCell<basic_with_camera::BasicPipeline>>,
     pipeline_sec: Rc<RefCell<BasicPipeline>>,
     present_pipeline: Rc<RefCell<PresentPipeline>>,
 
@@ -63,14 +68,20 @@ pub struct State {
 }
 
 impl State {
+    /// Create a new window with a given `window`
     pub async fn new(
         window: &Window,
         event_loop: &winit::event_loop::EventLoop<(PathBuf, wgpu::ShaderModule)>,
     ) -> Result<Self> {
+        // Create new instance using first-tier backend of WGPU
+        // One of Vulkan + Metal + DX12 + Browser WebGPU
         let instance = Instance::new(wgpu::Backends::PRIMARY);
 
+        // Create a `surface` represents a platform-specific window
+        // onto which rendered images may be presented
         let surface = unsafe { instance.create_surface(&window) };
 
+        // Get a handle to a physical device
         let adapter: wgpu::Adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::HighPerformance,
@@ -80,10 +91,12 @@ impl State {
             .await
             .ok_or(eyre!("Failed to create device adapter."))?;
 
+        // Use default features and limits for your machine
         let features = adapter.features();
         let limits = adapter.limits();
         let surface_format = wgpu::TextureFormat::Bgra8Unorm;
 
+        // Create the logical device and command queue
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
@@ -108,6 +121,9 @@ impl State {
 
         let mut watcher = Watcher::new(device.clone(), event_loop)?;
 
+        let camera = Camera::new(1., 0.5, 1., Vec3::ZERO, width as f32 / height as f32);
+        let camera_binding = CameraBinding::new(&device);
+
         let global_uniform = Uniform::default();
         let global_uniform_binding = GlobalUniformBinding::new(&device);
 
@@ -117,8 +133,9 @@ impl State {
         let screenshot_ctx =
             ScreenshotCtx::new(&device, surface_config.width, surface_config.height);
 
-        let sh1 = Path::new("shaders/shader.wgsl");
-        let pipeline = BasicPipeline::from_path(&device, HdrBackBuffer::FORMAT, sh1).wrap();
+        let sh1 = Path::new("shaders/shader_with_camera.wgsl");
+        let pipeline =
+            basic_with_camera::BasicPipeline::from_path(&device, HdrBackBuffer::FORMAT, sh1).wrap();
         watcher.register(&sh1, pipeline.clone())?;
 
         let sh2 = Path::new("shaders/shader_sec.wgsl");
@@ -137,6 +154,9 @@ impl State {
             surface,
             surface_config,
             surface_format,
+
+            camera,
+            camera_binding,
 
             screenshot_ctx,
 
@@ -169,6 +189,8 @@ impl State {
 
         self.screenshot_ctx.resize(&self.device, width, height);
         self.rgb_texture = create_rgb_framebuffer(&self.device, &self.surface_config);
+
+        self.camera.set_aspect(width, height);
     }
 
     pub fn render(&self) -> Result<(), wgpu::SurfaceError> {
@@ -197,7 +219,11 @@ impl State {
             depth_stencil_attachment: None,
         });
 
-        pipeline.record(&mut rpass, &self.global_uniform_binding);
+        pipeline.record(
+            &mut rpass,
+            &self.global_uniform_binding,
+            &self.camera_binding,
+        );
         pipeline_sec.record(&mut rpass, &self.global_uniform_binding);
         drop(rpass);
 
@@ -264,6 +290,8 @@ impl State {
 
         self.global_uniform_binding
             .update(&self.queue, &self.global_uniform);
+
+        self.camera_binding.update(&self.queue, &mut self.camera);
     }
 
     pub fn get_info(&self) -> RendererInfo {
@@ -318,7 +346,7 @@ pub struct RendererInfo {
     pub screen_format: wgpu::TextureFormat,
 }
 
-impl Display for RendererInfo {
+impl std::fmt::Display for RendererInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Vendor name: {}", self.vendor_name)?;
         writeln!(f, "Device name: {}", self.device_name)?;

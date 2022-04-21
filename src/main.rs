@@ -5,6 +5,7 @@ use winit::{dpi::LogicalSize, event_loop::EventLoop, window::WindowBuilder};
 use vokselis::run;
 
 fn main() -> Result<()> {
+    // Initialize hooks for pretty errors and logging
     color_eyre::install()?;
     env_logger::init();
 

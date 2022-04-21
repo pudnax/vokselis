@@ -23,6 +23,7 @@ notify = "5.0.0-pre.14"
 crossbeam-channel = "0.5.4"
 png = "0.17.5"
 chrono = "0.4.19"
+glam = { version = "0.20.5", features = ["bytemuck"] }
 
 [dependencies.wgpu]
 git = "https://github.com/gfx-rs/wgpu"

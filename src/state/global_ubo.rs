@@ -1,4 +1,5 @@
-use std::{num::NonZeroU64, time::Duration};
+use crate::utils::NonZeroSized;
+use std::time::Duration;
 
 use bytemuck::{Pod, Zeroable};
 use wgpu::util::DeviceExt;
@@ -80,9 +81,6 @@ impl Default for Uniform {
 }
 
 impl Uniform {
-    pub const SIZE: NonZeroU64 =
-        unsafe { NonZeroU64::new_unchecked(std::mem::size_of::<Self>() as _) };
-
     pub const DESC: wgpu::BindGroupLayoutDescriptor<'static> = wgpu::BindGroupLayoutDescriptor {
         label: Some("Global Uniform Bind Group Layout"),
         entries: &[wgpu::BindGroupLayoutEntry {

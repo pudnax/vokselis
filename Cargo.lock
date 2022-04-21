@@ -560,6 +560,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78cc372d058dcf6d5ecd98510e7fbc9e5aec4d21de70f65fea8fecebcd881bd4"
 
 [[package]]
+name = "glam"
+version = "0.20.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f43e957e744be03f5801a55472f593d43fabdebf25a4585db250f04d86b1675f"
+dependencies = [
+ "bytemuck",
+]
+
+[[package]]
 name = "glow"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1493,6 +1502,7 @@ dependencies = [
  "color-eyre",
  "crossbeam-channel",
  "env_logger",
+ "glam",
  "naga 0.8.0 (git+https://github.com/gfx-rs/naga?branch=master)",
  "notify",
  "png",
