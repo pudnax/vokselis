@@ -5,8 +5,8 @@ use wgpu::util::DeviceExt;
 use crate::{
     camera::CameraBinding,
     state::{
-        foot_texture::FootTexture, global_ubo::GlobalUniformBinding, hdr_backbuffer::HdrBackBuffer,
-        Uniform,
+        foot_texture::VolumeTexture, global_ubo::GlobalUniformBinding,
+        hdr_backbuffer::HdrBackBuffer, Uniform,
     },
     utils::shader_compiler::ShaderCompiler,
     watcher::ReloadablePipeline,
@@ -41,7 +41,7 @@ impl RaycastPipeline {
     pub fn new_with_module(device: &wgpu::Device, shader: &wgpu::ShaderModule) -> Self {
         let global_bind_group_layout = device.create_bind_group_layout(&Uniform::DESC);
         let camera_bind_group_layout = device.create_bind_group_layout(&CameraBinding::DESC);
-        let texture_bind_group_layout = device.create_bind_group_layout(&FootTexture::DESC);
+        let texture_bind_group_layout = device.create_bind_group_layout(&VolumeTexture::DESC);
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Screen Pass Layout"),
             bind_group_layouts: &[
@@ -105,7 +105,7 @@ impl<'a> RaycastPipeline {
         rpass: &mut wgpu::RenderPass<'pass>,
         uniform_bind_group: &'a GlobalUniformBinding,
         camera_bind_group: &'a CameraBinding,
-        volume_texture: &'a FootTexture,
+        volume_texture: &'a VolumeTexture,
     ) where
         'a: 'pass,
     {
