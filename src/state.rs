@@ -12,12 +12,13 @@ use pollster::FutureExt;
 use wgpu::Instance;
 use winit::{dpi::PhysicalSize, window::Window};
 
-mod basic;
-mod basic_with_camera;
+mod foot_texture;
 mod global_ubo;
 mod hdr_backbuffer;
-mod present;
+mod pipelines;
 mod screenshot;
+
+use pipelines::*;
 
 use basic::BasicPipeline;
 use hdr_backbuffer::HdrBackBuffer;
@@ -25,8 +26,8 @@ use present::PresentPipeline;
 
 use crate::{
     camera::{Camera, CameraBinding},
-    utils::frame_counter::FrameCounter,
     utils::RcWrap,
+    utils::{frame_counter::FrameCounter, shader_compiler::ShaderCompiler},
     utils::{input::Input, ImageDimentions},
     watcher::{ReloadablePipeline, Watcher},
 };
@@ -34,7 +35,9 @@ use crate::{
 use global_ubo::GlobalUniformBinding;
 pub use global_ubo::Uniform;
 
-use self::screenshot::ScreenshotCtx;
+use self::{
+    foot_texture::VolumeTexture, pipelines::raycast::RaycastPipeline, screenshot::ScreenshotCtx,
+};
 
 pub struct State {
     watcher: Watcher,
@@ -46,6 +49,9 @@ pub struct State {
     pub surface_format: wgpu::TextureFormat,
 
     pub screenshot_ctx: screenshot::ScreenshotCtx,
+
+    foot_texture: VolumeTexture,
+    raycast_pipeline: Rc<RefCell<RaycastPipeline>>,
 
     pub camera: Camera,
     camera_binding: CameraBinding,
@@ -121,7 +127,13 @@ impl State {
 
         let mut watcher = Watcher::new(device.clone(), event_loop)?;
 
-        let camera = Camera::new(1., 0.5, 1., Vec3::ZERO, width as f32 / height as f32);
+        let camera = Camera::new(
+            1.,
+            0.5,
+            1.,
+            Vec3::new(0.5, 0.5, 0.5),
+            width as f32 / height as f32,
+        );
         let camera_binding = CameraBinding::new(&device);
 
         let global_uniform = Uniform::default();
@@ -133,9 +145,16 @@ impl State {
         let screenshot_ctx =
             ScreenshotCtx::new(&device, surface_config.width, surface_config.height);
 
+        let mut shader_compiler = ShaderCompiler::new();
+
         let sh1 = Path::new("shaders/shader_with_camera.wgsl");
-        let pipeline =
-            basic_with_camera::BasicPipeline::from_path(&device, HdrBackBuffer::FORMAT, sh1).wrap();
+        let pipeline = basic_with_camera::BasicPipeline::from_path(
+            &device,
+            HdrBackBuffer::FORMAT,
+            sh1,
+            &mut shader_compiler,
+        )
+        .wrap();
         watcher.register(&sh1, pipeline.clone())?;
 
         let sh2 = Path::new("shaders/shader_sec.wgsl");
@@ -143,9 +162,21 @@ impl State {
         watcher.register(&sh2, pipeline_sec.clone())?;
 
         let present_shader = Path::new("shaders/present.wgsl");
-        let present_pipeline =
-            PresentPipeline::from_path(&device, surface_format, present_shader).wrap();
+        let present_pipeline = PresentPipeline::from_path(
+            &device,
+            surface_format,
+            present_shader,
+            &mut shader_compiler,
+        )
+        .wrap();
         watcher.register(&present_shader, present_pipeline.clone())?;
+
+        let foot_texture = VolumeTexture::new(&device, &queue);
+
+        let raycast_shader = Path::new("shaders/raycast.wgsl");
+        let raycast_pipeline =
+            RaycastPipeline::from_path(&device, &raycast_shader, &mut shader_compiler).wrap();
+        watcher.register(&raycast_shader, raycast_pipeline.clone())?;
 
         Ok(Self {
             adapter,
@@ -159,6 +190,9 @@ impl State {
             camera_binding,
 
             screenshot_ctx,
+
+            foot_texture,
+            raycast_pipeline,
 
             rgb_texture,
 
@@ -203,8 +237,7 @@ impl State {
                 label: Some("Present Encoder"),
             });
 
-        let pipeline = self.pipeline.borrow();
-        let pipeline_sec = self.pipeline_sec.borrow();
+        let raycast_pipeline = self.raycast_pipeline.borrow();
 
         let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Drawing Pass"),
@@ -219,12 +252,12 @@ impl State {
             depth_stencil_attachment: None,
         });
 
-        pipeline.record(
+        raycast_pipeline.record(
             &mut rpass,
             &self.global_uniform_binding,
             &self.camera_binding,
+            &self.foot_texture,
         );
-        pipeline_sec.record(&mut rpass, &self.global_uniform_binding);
         drop(rpass);
 
         let present_pipeline = self.present_pipeline.borrow();

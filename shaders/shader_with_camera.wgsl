@@ -22,7 +22,7 @@ struct VertexOutput {
     @builtin(position) pos: vec4<f32>,
 };
 
-@stage(vertex)
+@vertex
 fn vs_main(@builtin(vertex_index) vertex_idx: u32) -> VertexOutput {
     let vertex_idx = i32(vertex_idx);
     var res: vec4<f32>;
@@ -37,8 +37,8 @@ fn vs_main(@builtin(vertex_index) vertex_idx: u32) -> VertexOutput {
     return VertexOutput(res);
 }
 
-@stage(fragment)
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+@fragment
+fn fs_main(vin: VertexOutput) -> @location(0) vec4<f32> {
     var t = fract(un.time);
     return vec4<f32>(t, f32(un.mouse_pressed), 1., 1.);
 }

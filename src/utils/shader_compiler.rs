@@ -2,14 +2,14 @@ use std::path::Path;
 
 use color_eyre::Result;
 use naga::{
-    back::spv,
+    back::spv::{self, BindingMap},
     front::wgsl,
     valid::{Capabilities, ValidationFlags, Validator},
 };
 
 pub struct ShaderCompiler {
     validator: Validator,
-    options: spv::Options,
+    writer: spv::Writer,
 }
 
 impl ShaderCompiler {
@@ -28,13 +28,9 @@ impl ShaderCompiler {
             }
         };
         let module_info = self.validator.validate(&module)?;
-        Ok(spv::write_vec(
-            &module,
-            &module_info,
-            &self.options,
-            None,
-            // Some(&options),
-        )?)
+        let mut words = vec![];
+        self.writer.write(&module, &module_info, None, &mut words)?;
+        Ok(words)
     }
 }
 
@@ -42,7 +38,8 @@ impl Default for ShaderCompiler {
     fn default() -> Self {
         let validator = Validator::new(ValidationFlags::all(), Capabilities::all());
         let options = get_options();
-        Self { validator, options }
+        let writer = spv::Writer::new(&options).unwrap();
+        Self { validator, writer }
     }
 }
 
@@ -84,6 +81,7 @@ fn get_options() -> spv::Options {
         true, // could check `super::Workarounds::SEPARATE_ENTRY_POINTS`
     );
     spv::Options {
+        binding_map: BindingMap::new(),
         lang_version: (1, 0),
         flags,
         capabilities: Some(capabilities.iter().cloned().collect()),

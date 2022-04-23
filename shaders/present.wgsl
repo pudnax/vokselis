@@ -20,13 +20,13 @@ var src_texture: texture_2d<f32>;
 @group(2) @binding(0)
 var src_sampler: sampler;
 
-fn linear_to_srgb(linear: vec4<f32>) -> vec4<f32> {
-    let color_linear = linear.rgb;
+fn linear_to_srgb(col: vec4<f32>) -> vec4<f32> {
+    let color_linear = col.rgb;
     let selector = ceil(color_linear - 0.0031308);
     let under = 12.92 * color_linear;
     let over = 1.055 * pow(color_linear, vec3<f32>(0.41666)) - 0.055;
     let result = mix(under, over, selector);
-    return vec4<f32>(result, linear.a);
+    return vec4<f32>(result, col.a);
 }
 
 fn tex_sample(tex: texture_2d<f32>, uv: vec2<f32>) -> float4 {
@@ -90,7 +90,7 @@ struct VertexOutput {
     @location(0) uv: vec2<f32>,
 };
 
-@stage(vertex)
+@vertex
 fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> VertexOutput {
     let vertex_idx = i32(in_vertex_index);
     let uv = vec2<f32>(f32((vertex_idx << 1u) & 2), f32(vertex_idx & 2));
@@ -103,16 +103,16 @@ struct FragmentOutput {
     @location(1) secnd: vec4<f32>,
 };
 
-@stage(fragment)
-fn fs_main(in: VertexOutput) -> FragmentOutput {
+@fragment
+fn fs_main(vin: VertexOutput) -> FragmentOutput {
     // let col = tex_sample(src_texture, in.uv);
     // let col = texture_quadratic(src_texture, in.uv);
-    let col = texture_bicubic(src_texture, in.uv);
+    let col = texture_bicubic(src_texture, vin.uv);
     let col = linear_to_srgb(col);
     return FragmentOutput(col, col);
 }
 
-@stage(fragment)
-fn fs_main_raw(in: VertexOutput) -> @location(0) vec4<f32> {
-    return textureSample(src_texture, src_sampler, in.uv);
+@fragment
+fn fs_main_raw(vin: VertexOutput) -> @location(0) vec4<f32> {
+    return textureSample(src_texture, src_sampler, vin.uv);
 }

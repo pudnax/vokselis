@@ -41,6 +41,7 @@ pub async fn run(
     let rotate_speed = 0.0025;
     let zoom_speed = 0.002;
 
+    let mut main_window_focused = false;
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
 
@@ -49,9 +50,12 @@ pub async fn run(
                 state.update(&frame_counter, &input);
                 window.request_redraw();
             }
-            Event::WindowEvent { event, .. } => {
+            Event::WindowEvent {
+                event, window_id, ..
+            } if window.id() == window_id => {
                 input.update(&event, &window);
                 match event {
+                    WindowEvent::Focused(focused) => main_window_focused = focused,
                     WindowEvent::CloseRequested
                     | WindowEvent::KeyboardInput {
                         input:
@@ -111,7 +115,7 @@ pub async fn run(
                 }
             }
 
-            Event::DeviceEvent { ref event, .. } => match event {
+            Event::DeviceEvent { ref event, .. } if main_window_focused => match event {
                 DeviceEvent::Button {
                     #[cfg(target_os = "macos")]
                         button: 0,

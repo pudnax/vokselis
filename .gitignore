@@ -1,5 +1,5 @@
 /target
-naga
+naga-cli
 *.cap
 /recordings
 /screenshots

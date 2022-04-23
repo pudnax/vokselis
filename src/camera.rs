@@ -145,12 +145,13 @@ impl Camera {
 
     fn fix_eye(&mut self) {
         let pitch_cos = self.pitch.cos();
-        self.eye = self.zoom
-            * Vec3::new(
-                self.yaw.sin() * pitch_cos,
-                self.pitch.sin(),
-                self.yaw.cos() * pitch_cos,
-            );
+        self.eye = self.target
+            - self.zoom
+                * Vec3::new(
+                    self.yaw.sin() * pitch_cos,
+                    self.pitch.sin(),
+                    self.yaw.cos() * pitch_cos,
+                );
     }
 
     pub fn set_aspect(&mut self, width: u32, height: u32) {
