@@ -5,8 +5,8 @@ use wgpu::util::DeviceExt;
 use crate::{
     camera::CameraBinding,
     state::{
-        foot_texture::VolumeTexture, global_ubo::GlobalUniformBinding,
-        hdr_backbuffer::HdrBackBuffer, Uniform,
+        global_ubo::GlobalUniformBinding, hdr_backbuffer::HdrBackBuffer,
+        volume_texture::VolumeTexture, Uniform,
     },
     utils::shader_compiler::ShaderCompiler,
     watcher::ReloadablePipeline,

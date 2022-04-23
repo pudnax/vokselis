@@ -12,11 +12,11 @@ use pollster::FutureExt;
 use wgpu::Instance;
 use winit::{dpi::PhysicalSize, window::Window};
 
-mod foot_texture;
 mod global_ubo;
 mod hdr_backbuffer;
 mod pipelines;
 mod screenshot;
+mod volume_texture;
 
 use pipelines::*;
 
@@ -36,7 +36,7 @@ use global_ubo::GlobalUniformBinding;
 pub use global_ubo::Uniform;
 
 use self::{
-    foot_texture::VolumeTexture, pipelines::raycast::RaycastPipeline, screenshot::ScreenshotCtx,
+    pipelines::raycast::RaycastPipeline, screenshot::ScreenshotCtx, volume_texture::VolumeTexture,
 };
 
 pub struct State {
@@ -131,7 +131,7 @@ impl State {
             1.,
             0.5,
             1.,
-            Vec3::new(0.5, 0.5, 0.5),
+            (0.5, 0.5, 0.5).into(),
             width as f32 / height as f32,
         );
         let camera_binding = CameraBinding::new(&device);
