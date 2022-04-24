@@ -137,7 +137,7 @@ impl State {
         let global_uniform = Uniform::default();
         let global_uniform_binding = GlobalUniformBinding::new(&device);
 
-        let render_backbuffer = HdrBackBuffer::new(&device, (width, height));
+        let render_backbuffer = HdrBackBuffer::new(&device, HdrBackBuffer::DEFAULT_RESOLUTION);
         let rgb_texture = create_rgb_framebuffer(&device, &surface_config);
 
         let screenshot_ctx =

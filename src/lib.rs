@@ -56,6 +56,7 @@ pub async fn run(
                 input.update(&event, &window);
                 match event {
                     WindowEvent::Focused(focused) => main_window_focused = focused,
+
                     WindowEvent::CloseRequested
                     | WindowEvent::KeyboardInput {
                         input:

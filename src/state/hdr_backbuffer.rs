@@ -8,6 +8,7 @@ pub struct HdrBackBuffer {
 
 impl HdrBackBuffer {
     pub const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
+    pub const DEFAULT_RESOLUTION: (u32, u32) = (1280, 720);
 
     pub fn new(device: &wgpu::Device, (width, height): (u32, u32)) -> Self {
         let size = wgpu::Extent3d {
