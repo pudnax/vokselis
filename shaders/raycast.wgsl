@@ -86,7 +86,7 @@ fn fs_main(vin: VertexOutput) -> @location(0) float4 {
 
     var t_hit = intersect_box(eye, ray_dir);
     if (t_hit.x > t_hit.y) {
-		discard;
+        return vec4<f32>(0., 0., 0., 1.);
     }
     t_hit.x = max(t_hit.x, 0.0);
 
@@ -97,9 +97,8 @@ fn fs_main(vin: VertexOutput) -> @location(0) float4 {
     var p = eye + t_hit.x * ray_dir;
     for (var t = t_hit.x; t < t_hit.y; t = t + dt) {
         var val = textureSampleLevel(volume, tex_sampler, p, 0.0).r;
-        // var val_color = float4(textureSampleLevel(colormap, tex_sampler, float2(val, 0.5), 0.0).rgb, val);
 
-        val = clamp(0.6, .09, val);
+        val = clamp(0.0, .6, val);
         val = smoothstep(0.11, 1.0, val);
         var val_color = vec4<f32>(vertigo(val), val);
 
@@ -119,5 +118,5 @@ fn fs_main(vin: VertexOutput) -> @location(0) float4 {
     color.r = linear_to_srgb(color.r);
     color.g = linear_to_srgb(color.g);
     color.b = linear_to_srgb(color.b);
-    return color;
+    return vec4<f32>(color.rgb, 1.);
 }
