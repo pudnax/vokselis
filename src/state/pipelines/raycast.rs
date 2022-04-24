@@ -38,20 +38,7 @@ impl RaycastPipeline {
         Self::new_with_module(device, &shader)
     }
 
-    pub fn new_with_module(device: &wgpu::Device, shader: &wgpu::ShaderModule) -> Self {
-        let global_bind_group_layout = device.create_bind_group_layout(&Uniform::DESC);
-        let camera_bind_group_layout = device.create_bind_group_layout(&CameraBinding::DESC);
-        let texture_bind_group_layout = device.create_bind_group_layout(&VolumeTexture::DESC);
-        let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Screen Pass Layout"),
-            bind_group_layouts: &[
-                &global_bind_group_layout,
-                &camera_bind_group_layout,
-                &texture_bind_group_layout,
-            ],
-            push_constant_ranges: &[],
-        });
-
+    pub fn new_with_module(device: &wgpu::Device, module: &wgpu::ShaderModule) -> Self {
         let vertices = [
             1., 1., 0., 0., 1., 0., 1., 1., 1., 0., 1., 1., 0., 0., 1., 0., 1., 0., 0., 0., 0., 1.,
             1., 0., 1., 0., 0., 1., 1., 1., 1., 0., 1., 0., 0., 1., 1., 0., 0., 0., 0., 0.,
@@ -64,16 +51,37 @@ impl RaycastPipeline {
 
         let vertex_count = vertices.len() / 3;
 
+        let pipeline = Self::make_pipeline(device, module);
+        Self {
+            pipeline,
+            vertex_buffer,
+            vertex_count,
+        }
+    }
+
+    fn make_pipeline(device: &wgpu::Device, module: &wgpu::ShaderModule) -> wgpu::RenderPipeline {
+        let global_bind_group_layout = device.create_bind_group_layout(&Uniform::DESC);
+        let camera_bind_group_layout = device.create_bind_group_layout(&CameraBinding::DESC);
+        let texture_bind_group_layout = device.create_bind_group_layout(&VolumeTexture::DESC);
+        let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Screen Pass Layout"),
+            bind_group_layouts: &[
+                &global_bind_group_layout,
+                &camera_bind_group_layout,
+                &texture_bind_group_layout,
+            ],
+            push_constant_ranges: &[],
+        });
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Raycast Pipeline"),
             layout: Some(&layout),
             fragment: Some(wgpu::FragmentState {
-                module: shader,
+                module,
                 entry_point: "fs_main",
                 targets: &[HdrBackBuffer::FORMAT.into()],
             }),
             vertex: wgpu::VertexState {
-                module: shader,
+                module,
                 entry_point: "vs_main",
                 buffers: &[wgpu::VertexBufferLayout {
                     array_stride: 3 * 4,
@@ -90,12 +98,7 @@ impl RaycastPipeline {
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
         });
-
-        Self {
-            pipeline,
-            vertex_buffer,
-            vertex_count,
-        }
+        pipeline
     }
 }
 
@@ -121,6 +124,6 @@ impl<'a> RaycastPipeline {
 
 impl ReloadablePipeline for RaycastPipeline {
     fn reload(&mut self, device: &wgpu::Device, module: &wgpu::ShaderModule) {
-        *self = Self::new_with_module(device, module);
+        self.pipeline = Self::make_pipeline(device, module);
     }
 }

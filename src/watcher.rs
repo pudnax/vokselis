@@ -31,6 +31,8 @@ pub struct Watcher {
     pub hash_dump: ContiniousHashMap<PathBuf, Rc<RefCell<dyn ReloadablePipeline>>>,
 }
 
+pub type PipelineHandle<T> = Rc<RefCell<T>>;
+
 impl Watcher {
     pub fn new(
         device: Arc<wgpu::Device>,
@@ -49,14 +51,15 @@ impl Watcher {
         })
     }
 
-    pub fn register(
+    pub fn register<T: ReloadablePipeline + 'static>(
         &mut self,
         path: &impl AsRef<Path>,
-        pipeline: Rc<RefCell<dyn ReloadablePipeline>>,
-    ) -> Result<()> {
+        pipeline: T,
+    ) -> Result<PipelineHandle<T>> {
+        let pipeline_ref = Rc::new(RefCell::new(pipeline));
         self.hash_dump
-            .push_value(path.as_ref().canonicalize()?, pipeline.clone());
-        Ok(())
+            .push_value(path.as_ref().canonicalize()?, pipeline_ref.clone());
+        Ok(pipeline_ref)
     }
 }
 

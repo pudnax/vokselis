@@ -7,7 +7,6 @@ use std::{
 };
 
 use color_eyre::eyre::{eyre, Result};
-use glam::Vec3;
 use pollster::FutureExt;
 use wgpu::Instance;
 use winit::{dpi::PhysicalSize, window::Window};
@@ -26,10 +25,9 @@ use present::PresentPipeline;
 
 use crate::{
     camera::{Camera, CameraBinding},
-    utils::RcWrap,
     utils::{frame_counter::FrameCounter, shader_compiler::ShaderCompiler},
     utils::{input::Input, ImageDimentions},
-    watcher::{ReloadablePipeline, Watcher},
+    watcher::{PipelineHandle, ReloadablePipeline, Watcher},
 };
 
 use global_ubo::GlobalUniformBinding;
@@ -65,9 +63,9 @@ pub struct State {
 
     timeline: Instant,
 
-    pipeline: Rc<RefCell<basic_with_camera::BasicPipeline>>,
-    pipeline_sec: Rc<RefCell<BasicPipeline>>,
-    present_pipeline: Rc<RefCell<PresentPipeline>>,
+    pipeline: PipelineHandle<basic_with_camera::BasicPipeline>,
+    pipeline_sec: PipelineHandle<BasicPipeline>,
+    present_pipeline: PipelineHandle<PresentPipeline>,
 
     pub global_uniform: Uniform,
     global_uniform_binding: GlobalUniformBinding,
@@ -153,13 +151,12 @@ impl State {
             HdrBackBuffer::FORMAT,
             sh1,
             &mut shader_compiler,
-        )
-        .wrap();
-        watcher.register(&sh1, pipeline.clone())?;
+        );
+        let pipeline = watcher.register(&sh1, pipeline)?;
 
         let sh2 = Path::new("shaders/shader_sec.wgsl");
-        let pipeline_sec = BasicPipeline::from_path(&device, HdrBackBuffer::FORMAT, sh2).wrap();
-        watcher.register(&sh2, pipeline_sec.clone())?;
+        let pipeline_sec = BasicPipeline::from_path(&device, HdrBackBuffer::FORMAT, sh2);
+        let pipeline_sec = watcher.register(&sh2, pipeline_sec)?;
 
         let present_shader = Path::new("shaders/present.wgsl");
         let present_pipeline = PresentPipeline::from_path(
@@ -167,16 +164,15 @@ impl State {
             surface_format,
             present_shader,
             &mut shader_compiler,
-        )
-        .wrap();
-        watcher.register(&present_shader, present_pipeline.clone())?;
+        );
+        let present_pipeline = watcher.register(&present_shader, present_pipeline)?;
 
         let foot_texture = VolumeTexture::new(&device, &queue);
 
         let raycast_shader = Path::new("shaders/raycast.wgsl");
         let raycast_pipeline =
-            RaycastPipeline::from_path(&device, &raycast_shader, &mut shader_compiler).wrap();
-        watcher.register(&raycast_shader, raycast_pipeline.clone())?;
+            RaycastPipeline::from_path(&device, &raycast_shader, &mut shader_compiler);
+        let raycast_pipeline = watcher.register(&raycast_shader, raycast_pipeline)?;
 
         Ok(Self {
             adapter,

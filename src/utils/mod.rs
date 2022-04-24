@@ -1,12 +1,10 @@
 use std::{
-    cell::RefCell,
     collections::HashMap,
     hash::Hash,
     io::{self, Write},
     num::NonZeroU64,
     ops::{Deref, DerefMut},
     path::Path,
-    rc::Rc,
 };
 
 pub mod frame_counter;
@@ -41,13 +39,6 @@ pub trait NonZeroSized: Sized {
 }
 /// Holds invariants? Nah!
 impl<T> NonZeroSized for T where T: Sized {}
-
-pub(crate) trait RcWrap: Sized {
-    fn wrap(self) -> Rc<RefCell<Self>> {
-        Rc::new(RefCell::new(self))
-    }
-}
-impl<T> RcWrap for T where T: Sized {}
 
 /// A hash map with a [HashSet](std::collections::HashSet) to hold unique values
 #[derive(Debug)]
