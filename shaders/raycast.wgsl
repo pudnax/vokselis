@@ -98,9 +98,9 @@ fn fs_main(vin: VertexOutput) -> @location(0) float4 {
     for (var t = t_hit.x; t < t_hit.y; t = t + dt) {
         var val = textureSampleLevel(volume, tex_sampler, p, 0.0).r;
 
-        val = clamp(0.0, .6, val);
+        val = clamp(0.0, .5, val);
         val = smoothstep(0.11, 1.0, val);
-        var val_color = vec4<f32>(vertigo(val), val);
+        var val_color = vec4<f32>(vertigo(.72 - val), val);
 
 		// Opacity correction
         // val_color.a = 1.0 - pow(1.0 - val_color.a, dt_scale);

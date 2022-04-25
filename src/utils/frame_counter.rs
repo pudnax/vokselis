@@ -8,11 +8,7 @@ pub struct FrameCounter {
 
 impl FrameCounter {
     pub fn new() -> Self {
-        Self {
-            frame_count: 0,
-            accum_time: 0.,
-            last_inst: Instant::now(),
-        }
+        Self::default()
     }
 
     pub fn time_delta(&self) -> f32 {
@@ -30,5 +26,15 @@ impl FrameCounter {
             self.frame_count = 0;
         }
         self.accum_time
+    }
+}
+
+impl Default for FrameCounter {
+    fn default() -> Self {
+        Self {
+            frame_count: 0,
+            accum_time: 0.,
+            last_inst: Instant::now(),
+        }
     }
 }

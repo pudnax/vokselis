@@ -2,9 +2,14 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 mod camera;
-mod state;
+pub mod context;
 mod utils;
 mod watcher;
+
+pub use camera::{Camera, CameraBinding};
+pub use context::{Context, GlobalUniformBinding, PipelineHandle, Uniform, VolumeTexture};
+pub use utils::shader_compiler;
+pub use watcher::{ReloadablePipeline, Watcher};
 
 use color_eyre::eyre::Result;
 use pollster::FutureExt;
@@ -23,16 +28,29 @@ const SHADER_FOLDER: &str = "shaders";
 const SCREENSHOTS_FOLDER: &str = "screenshots";
 const VIDEO_FOLDER: &str = "recordings";
 
-pub async fn run(
+pub trait Demo: 'static + Sized {
+    fn init(ctx: &mut Context) -> Self;
+    fn resize(&mut self, _: &wgpu::Device, _: &wgpu::Queue, _: &wgpu::SurfaceConfiguration) {}
+    fn update(&mut self, _: &mut Context) {}
+    fn update_input(&mut self, _: WindowEvent) {}
+    fn render(&mut self, _: &Context) {}
+}
+
+pub fn run<D: Demo>(
     event_loop: EventLoop<(PathBuf, wgpu::ShaderModule)>,
     window: Window,
+    camera: Option<Camera>,
 ) -> Result<()> {
-    let mut state = state::State::new(&window, &event_loop).block_on()?;
+    // Initialize hooks for pretty errors and logging
+    color_eyre::install()?;
+    env_logger::init();
+
+    let mut context = Context::new(&window, &event_loop, camera).block_on()?;
 
     let mut recording_status = false;
     let recorder = utils::recorder::Recorder::new();
 
-    print_help(state.get_info(), &recorder.ffmpeg_version);
+    print_help(context.get_info(), &recorder.ffmpeg_version);
 
     let mut frame_counter = FrameCounter::new();
     let mut input = Input::new();
@@ -41,19 +59,23 @@ pub async fn run(
     let rotate_speed = 0.0025;
     let zoom_speed = 0.002;
 
+    let mut demo = D::init(&mut context);
+
     let mut main_window_focused = false;
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
 
         match event {
             Event::MainEventsCleared => {
-                state.update(&frame_counter, &input);
+                context.update(&frame_counter, &input);
+                demo.update(&mut context);
                 window.request_redraw();
             }
             Event::WindowEvent {
                 event, window_id, ..
             } if window.id() == window_id => {
                 input.update(&event, &window);
+
                 match event {
                     WindowEvent::Focused(focused) => main_window_focused = focused,
 
@@ -74,7 +96,8 @@ pub async fn run(
                         ..
                     } => {
                         if width != 0 && height != 0 {
-                            state.resize(width, height);
+                            context.resize(width, height);
+                            demo.resize(&context.device, &context.queue, &context.surface_config);
                         }
 
                         if recording_status {
@@ -95,16 +118,15 @@ pub async fn run(
                     } => {
                         if VirtualKeyCode::F11 == keycode {
                             let now = Instant::now();
-                            let frame = state.capture_frame();
+                            let frame = context.capture_frame();
                             eprintln!("Capture image: {:#.2?}", now.elapsed());
                             recorder.send(RecordEvent::Screenshot(frame));
                         }
 
                         if recorder.ffmpeg_installed() && VirtualKeyCode::F12 == keycode {
                             if !recording_status {
-                                recorder.send(RecordEvent::Start(
-                                    state.screenshot_ctx.image_dimentions,
-                                ));
+                                recorder
+                                    .send(RecordEvent::Start(context.capture_image_dimentions()));
                             } else {
                                 recorder.send(RecordEvent::Finish);
                             }
@@ -114,6 +136,7 @@ pub async fn run(
 
                     _ => {}
                 }
+                demo.update_input(event);
             }
 
             Event::DeviceEvent { ref event, .. } if main_window_focused => match event {
@@ -135,12 +158,12 @@ pub async fn run(
                             *scroll as f32
                         }
                     };
-                    state.camera.add_zoom(scroll_amount * zoom_speed);
+                    context.camera.add_zoom(scroll_amount * zoom_speed);
                 }
                 DeviceEvent::MouseMotion { delta } => {
                     if mouse_dragged {
-                        state.camera.add_yaw(-delta.0 as f32 * rotate_speed);
-                        state.camera.add_pitch(delta.1 as f32 * rotate_speed);
+                        context.camera.add_yaw(-delta.0 as f32 * rotate_speed);
+                        context.camera.add_pitch(delta.1 as f32 * rotate_speed);
                     }
                 }
                 _ => (),
@@ -148,10 +171,13 @@ pub async fn run(
 
             Event::RedrawRequested(_) => {
                 frame_counter.record();
-                match state.render() {
+
+                demo.render(&context);
+
+                match context.render() {
                     Ok(_) => {}
                     Err(wgpu::SurfaceError::Lost) => {
-                        state.resize(state.width, state.height);
+                        context.resize(context.width, context.height);
                         window.request_redraw();
                     }
                     Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
@@ -162,11 +188,11 @@ pub async fn run(
                 }
 
                 if recording_status {
-                    let (frame, _) = state.capture_frame();
+                    let (frame, _) = context.capture_frame();
                     recorder.send(RecordEvent::Record(frame));
                 }
             }
-            Event::UserEvent((path, shader)) => state.register_shader_change(path, shader),
+            Event::UserEvent((path, shader)) => context.register_shader_change(path, shader),
             Event::LoopDestroyed => {
                 println!("\n// End from the loop. Bye bye~⏎ ");
             }

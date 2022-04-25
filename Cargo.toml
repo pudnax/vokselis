@@ -26,11 +26,17 @@ chrono = "0.4.19"
 glam = { version = "0.20.5", features = ["bytemuck"] }
 
 [dependencies.wgpu]
-git = "https://github.com/gfx-rs/wgpu"
-branch = "master"
-features = ["spirv", "vulkan-portability"]
+# git = "https://github.com/gfx-rs/wgpu"
+# branch = "master"
+version = "0.12.0"
+features = ["spirv"]
+# features = ["spirv", "vulkan-portability"]
 
 [dependencies.naga]
 git = "https://github.com/gfx-rs/naga"
 branch = "master"
 features = ["span", "spv-out", "wgsl-in"]
+
+# [[example]]
+# name = "bonsai"
+# path = "examples/bonsai/src/main.rs"

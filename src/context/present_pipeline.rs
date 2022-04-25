@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use crate::{
-    state::{global_ubo::GlobalUniformBinding, Uniform},
+    context::{global_ubo::GlobalUniformBinding, Uniform},
     utils::shader_compiler::ShaderCompiler,
     watcher::ReloadablePipeline,
 };

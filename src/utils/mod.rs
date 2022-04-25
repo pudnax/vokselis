@@ -63,7 +63,7 @@ impl<K, V> ContiniousHashMap<K, V> {
     /// The hash map is initially created with a capacity of 0,
     /// so it will not allocate until it is first inserted into.
     pub fn new() -> Self {
-        Self(HashMap::new())
+        Self::default()
     }
 }
 
@@ -74,6 +74,12 @@ impl<K: Eq + Hash, V> ContiniousHashMap<K, V> {
     /// a value instead of rewriting an old value.
     pub fn push_value(&mut self, key: K, value: V) {
         self.0.entry(key).or_insert_with(Vec::new).push(value);
+    }
+}
+
+impl<K, V> Default for ContiniousHashMap<K, V> {
+    fn default() -> Self {
+        Self(HashMap::new())
     }
 }
 

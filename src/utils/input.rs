@@ -4,7 +4,7 @@ use winit::{
     window::Window,
 };
 
-use crate::state::Uniform;
+use crate::context::Uniform;
 
 #[derive(Debug, Default)]
 pub struct Input {

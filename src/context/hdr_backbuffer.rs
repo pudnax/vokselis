@@ -83,4 +83,8 @@ impl HdrBackBuffer {
             storage_bind_group,
         }
     }
+
+    pub fn format(&self) -> wgpu::TextureFormat {
+        Self::FORMAT
+    }
 }

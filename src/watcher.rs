@@ -13,8 +13,11 @@ use std::{
     sync::Arc,
 };
 
-use crate::utils::{shader_compiler::ShaderCompiler, ContiniousHashMap};
 use crate::SHADER_FOLDER;
+use crate::{
+    context::PipelineHandle,
+    utils::{shader_compiler::ShaderCompiler, ContiniousHashMap},
+};
 
 pub trait ReloadablePipeline {
     fn reload(&mut self, device: &wgpu::Device, module: &wgpu::ShaderModule);
@@ -31,8 +34,6 @@ pub struct Watcher {
     pub hash_dump: ContiniousHashMap<PathBuf, Rc<RefCell<dyn ReloadablePipeline>>>,
 }
 
-pub type PipelineHandle<T> = Rc<RefCell<T>>;
-
 impl Watcher {
     pub fn new(
         device: Arc<wgpu::Device>,
@@ -40,10 +41,7 @@ impl Watcher {
     ) -> Result<Self> {
         let mut watcher = notify::recommended_watcher(watch_callback(device, event_loop))?;
         watcher.configure(Config::PreciseEvents(true))?;
-        watcher.watch(
-            Path::new(SHADER_FOLDER),
-            notify::RecursiveMode::NonRecursive,
-        )?;
+        watcher.watch(Path::new(SHADER_FOLDER), notify::RecursiveMode::Recursive)?;
 
         Ok(Self {
             _watcher: watcher,

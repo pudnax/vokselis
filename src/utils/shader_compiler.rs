@@ -8,6 +8,7 @@ use naga::{
 };
 
 pub struct ShaderCompiler {
+    parser: wgsl::Parser,
     validator: Validator,
     writer: spv::Writer,
 }
@@ -19,7 +20,7 @@ impl ShaderCompiler {
 
     pub fn create_shader_module(&mut self, path: &Path) -> Result<Vec<u32>> {
         let source = std::fs::read_to_string(&path)?;
-        let module = match wgsl::parse_str(&source) {
+        let module = match self.parser.parse(&source) {
             Ok(m) => m,
             Err(e) => {
                 eprintln!("Shader compilation error:");
@@ -36,10 +37,15 @@ impl ShaderCompiler {
 
 impl Default for ShaderCompiler {
     fn default() -> Self {
+        let parser = wgsl::Parser::new();
         let validator = Validator::new(ValidationFlags::all(), Capabilities::all());
         let options = get_options();
         let writer = spv::Writer::new(&options).unwrap();
-        Self { validator, writer }
+        Self {
+            parser,
+            validator,
+            writer,
+        }
     }
 }
 

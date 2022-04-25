@@ -13,32 +13,35 @@ use winit::{dpi::PhysicalSize, window::Window};
 
 mod global_ubo;
 mod hdr_backbuffer;
+#[allow(dead_code)]
 mod pipelines;
+mod present_pipeline;
 mod screenshot;
 mod volume_texture;
 
-use pipelines::*;
-
-use basic::BasicPipeline;
 use hdr_backbuffer::HdrBackBuffer;
-use present::PresentPipeline;
+use present_pipeline::PresentPipeline;
 
 use crate::{
     camera::{Camera, CameraBinding},
     utils::{frame_counter::FrameCounter, shader_compiler::ShaderCompiler},
     utils::{input::Input, ImageDimentions},
-    watcher::{PipelineHandle, ReloadablePipeline, Watcher},
+    watcher::{ReloadablePipeline, Watcher},
 };
 
-use global_ubo::GlobalUniformBinding;
+pub use global_ubo::GlobalUniformBinding;
 pub use global_ubo::Uniform;
+pub use pipelines::raycast;
+pub use volume_texture::VolumeTexture;
 
-use self::{
-    pipelines::raycast::RaycastPipeline, screenshot::ScreenshotCtx, volume_texture::VolumeTexture,
-};
+use screenshot::ScreenshotCtx;
 
-pub struct State {
-    watcher: Watcher,
+pub type PipelineHandle<T> = Rc<RefCell<T>>;
+
+pub struct Context {
+    pub watcher: Watcher,
+    pub shader_compiler: ShaderCompiler,
+
     adapter: wgpu::Adapter,
     pub device: Arc<wgpu::Device>,
     pub queue: wgpu::Queue,
@@ -46,15 +49,12 @@ pub struct State {
     pub surface_config: wgpu::SurfaceConfiguration,
     pub surface_format: wgpu::TextureFormat,
 
-    pub screenshot_ctx: screenshot::ScreenshotCtx,
-
-    foot_texture: VolumeTexture,
-    raycast_pipeline: Rc<RefCell<RaycastPipeline>>,
+    screenshot_ctx: screenshot::ScreenshotCtx,
 
     pub camera: Camera,
-    camera_binding: CameraBinding,
+    pub camera_binding: CameraBinding,
 
-    render_backbuffer: HdrBackBuffer,
+    pub render_backbuffer: HdrBackBuffer,
 
     rgb_texture: wgpu::Texture,
 
@@ -63,19 +63,18 @@ pub struct State {
 
     timeline: Instant,
 
-    pipeline: PipelineHandle<basic_with_camera::BasicPipeline>,
-    pipeline_sec: PipelineHandle<BasicPipeline>,
-    present_pipeline: PipelineHandle<PresentPipeline>,
-
     pub global_uniform: Uniform,
-    global_uniform_binding: GlobalUniformBinding,
+    pub global_uniform_binding: GlobalUniformBinding,
+
+    present_pipeline: PipelineHandle<PresentPipeline>,
 }
 
-impl State {
+impl Context {
     /// Create a new window with a given `window`
     pub async fn new(
         window: &Window,
         event_loop: &winit::event_loop::EventLoop<(PathBuf, wgpu::ShaderModule)>,
+        camera: Option<Camera>,
     ) -> Result<Self> {
         // Create new instance using first-tier backend of WGPU
         // One of Vulkan + Metal + DX12 + Browser WebGPU
@@ -125,38 +124,19 @@ impl State {
 
         let mut watcher = Watcher::new(device.clone(), event_loop)?;
 
-        let camera = Camera::new(
-            1.,
-            0.5,
-            1.,
-            (0.5, 0.5, 0.5).into(),
-            width as f32 / height as f32,
-        );
-        let camera_binding = CameraBinding::new(&device);
-
-        let global_uniform = Uniform::default();
-        let global_uniform_binding = GlobalUniformBinding::new(&device);
-
+        let camera = camera.unwrap_or_else(|| {
+            Camera::new(
+                1.,
+                0.5,
+                1.,
+                (0., 0., 0.).into(),
+                width as f32 / height as f32,
+            )
+        });
         let render_backbuffer = HdrBackBuffer::new(&device, HdrBackBuffer::DEFAULT_RESOLUTION);
         let rgb_texture = create_rgb_framebuffer(&device, &surface_config);
 
-        let screenshot_ctx =
-            ScreenshotCtx::new(&device, surface_config.width, surface_config.height);
-
         let mut shader_compiler = ShaderCompiler::new();
-
-        let sh1 = Path::new("shaders/shader_with_camera.wgsl");
-        let pipeline = basic_with_camera::BasicPipeline::from_path(
-            &device,
-            HdrBackBuffer::FORMAT,
-            sh1,
-            &mut shader_compiler,
-        );
-        let pipeline = watcher.register(&sh1, pipeline)?;
-
-        let sh2 = Path::new("shaders/shader_sec.wgsl");
-        let pipeline_sec = BasicPipeline::from_path(&device, HdrBackBuffer::FORMAT, sh2);
-        let pipeline_sec = watcher.register(&sh2, pipeline_sec)?;
 
         let present_shader = Path::new("shaders/present.wgsl");
         let present_pipeline = PresentPipeline::from_path(
@@ -167,28 +147,16 @@ impl State {
         );
         let present_pipeline = watcher.register(&present_shader, present_pipeline)?;
 
-        let foot_texture = VolumeTexture::new(&device, &queue);
-
-        let raycast_shader = Path::new("shaders/raycast.wgsl");
-        let raycast_pipeline =
-            RaycastPipeline::from_path(&device, &raycast_shader, &mut shader_compiler);
-        let raycast_pipeline = watcher.register(&raycast_shader, raycast_pipeline)?;
-
         Ok(Self {
-            adapter,
-            device,
-            queue,
-            surface,
-            surface_config,
-            surface_format,
-
+            shader_compiler,
             camera,
-            camera_binding,
+            camera_binding: CameraBinding::new(&device),
 
-            screenshot_ctx,
-
-            foot_texture,
-            raycast_pipeline,
+            screenshot_ctx: ScreenshotCtx::new(
+                &device,
+                surface_config.width,
+                surface_config.height,
+            ),
 
             rgb_texture,
 
@@ -199,15 +167,75 @@ impl State {
 
             timeline: Instant::now(),
 
-            pipeline,
-            pipeline_sec,
             watcher,
 
             present_pipeline,
 
-            global_uniform,
-            global_uniform_binding,
+            global_uniform: Uniform::default(),
+            global_uniform_binding: GlobalUniformBinding::new(&device),
+
+            device,
+            adapter,
+            queue,
+            surface,
+            surface_config,
+            surface_format,
         })
+    }
+
+    pub fn get_info(&self) -> RendererInfo {
+        let info = self.adapter.get_info();
+        RendererInfo {
+            device_name: info.name,
+            device_type: self.get_device_type().to_string(),
+            vendor_name: self.get_vendor_name().to_string(),
+            backend: self.get_backend().to_string(),
+            screen_format: self.surface_config.format,
+        }
+    }
+    fn get_vendor_name(&self) -> &str {
+        match self.adapter.get_info().vendor {
+            0x1002 => "AMD",
+            0x1010 => "ImgTec",
+            0x10DE => "NVIDIA Corporation",
+            0x13B5 => "ARM",
+            0x5143 => "Qualcomm",
+            0x8086 => "INTEL Corporation",
+            _ => "Unknown vendor",
+        }
+    }
+    fn get_backend(&self) -> &str {
+        match self.adapter.get_info().backend {
+            wgpu::Backend::Empty => "Empty",
+            wgpu::Backend::Vulkan => "Vulkan",
+            wgpu::Backend::Metal => "Metal",
+            wgpu::Backend::Dx12 => "Dx12",
+            wgpu::Backend::Dx11 => "Dx11",
+            wgpu::Backend::Gl => "GL",
+            wgpu::Backend::BrowserWebGpu => "Browser WGPU",
+        }
+    }
+    fn get_device_type(&self) -> &str {
+        match self.adapter.get_info().device_type {
+            wgpu::DeviceType::Other => "Other",
+            wgpu::DeviceType::IntegratedGpu => "Integrated GPU",
+            wgpu::DeviceType::DiscreteGpu => "Discrete GPU",
+            wgpu::DeviceType::VirtualGpu => "Virtual GPU",
+            wgpu::DeviceType::Cpu => "CPU",
+        }
+    }
+
+    pub fn update(&mut self, frame_counter: &FrameCounter, input: &Input) {
+        self.global_uniform.time = self.timeline.elapsed().as_secs_f32();
+        self.global_uniform.time_delta = frame_counter.time_delta();
+        self.global_uniform.frame = frame_counter.frame_count;
+        self.global_uniform.resolution = [self.width as _, self.height as _];
+        input.process_position(&mut self.global_uniform);
+
+        self.global_uniform_binding
+            .update(&self.queue, &self.global_uniform);
+
+        self.camera_binding.update(&self.queue, &mut self.camera);
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -232,29 +260,6 @@ impl State {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Present Encoder"),
             });
-
-        let raycast_pipeline = self.raycast_pipeline.borrow();
-
-        let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Drawing Pass"),
-            color_attachments: &[wgpu::RenderPassColorAttachment {
-                view: &self.render_backbuffer.texture_view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                    store: true,
-                },
-            }],
-            depth_stencil_attachment: None,
-        });
-
-        raycast_pipeline.record(
-            &mut rpass,
-            &self.global_uniform_binding,
-            &self.camera_binding,
-            &self.foot_texture,
-        );
-        drop(rpass);
 
         let present_pipeline = self.present_pipeline.borrow();
         let rgb = self.rgb_texture.create_view(&Default::default());
@@ -302,66 +307,15 @@ impl State {
             .unwrap()
     }
 
+    pub fn capture_image_dimentions(&self) -> ImageDimentions {
+        self.screenshot_ctx.image_dimentions
+    }
+
     pub fn register_shader_change(&mut self, path: PathBuf, shader: wgpu::ShaderModule) {
         if let Some(pipelines) = self.watcher.hash_dump.get_mut(&path) {
             for pipeline in pipelines.iter_mut() {
                 pipeline.reload(&self.device, &shader);
             }
-        }
-    }
-
-    pub fn update(&mut self, frame_counter: &FrameCounter, input: &Input) {
-        self.global_uniform.time = self.timeline.elapsed().as_secs_f32();
-        self.global_uniform.time_delta = frame_counter.time_delta();
-        self.global_uniform.frame = frame_counter.frame_count;
-        self.global_uniform.resolution = [self.width as _, self.height as _];
-        input.process_position(&mut self.global_uniform);
-
-        self.global_uniform_binding
-            .update(&self.queue, &self.global_uniform);
-
-        self.camera_binding.update(&self.queue, &mut self.camera);
-    }
-
-    pub fn get_info(&self) -> RendererInfo {
-        let info = self.adapter.get_info();
-        RendererInfo {
-            device_name: info.name,
-            device_type: self.get_device_type().to_string(),
-            vendor_name: self.get_vendor_name().to_string(),
-            backend: self.get_backend().to_string(),
-            screen_format: self.surface_config.format,
-        }
-    }
-    fn get_vendor_name(&self) -> &str {
-        match self.adapter.get_info().vendor {
-            0x1002 => "AMD",
-            0x1010 => "ImgTec",
-            0x10DE => "NVIDIA Corporation",
-            0x13B5 => "ARM",
-            0x5143 => "Qualcomm",
-            0x8086 => "INTEL Corporation",
-            _ => "Unknown vendor",
-        }
-    }
-    fn get_backend(&self) -> &str {
-        match self.adapter.get_info().backend {
-            wgpu::Backend::Empty => "Empty",
-            wgpu::Backend::Vulkan => "Vulkan",
-            wgpu::Backend::Metal => "Metal",
-            wgpu::Backend::Dx12 => "Dx12",
-            wgpu::Backend::Dx11 => "Dx11",
-            wgpu::Backend::Gl => "GL",
-            wgpu::Backend::BrowserWebGpu => "Browser WGPU",
-        }
-    }
-    fn get_device_type(&self) -> &str {
-        match self.adapter.get_info().device_type {
-            wgpu::DeviceType::Other => "Other",
-            wgpu::DeviceType::IntegratedGpu => "Integrated GPU",
-            wgpu::DeviceType::DiscreteGpu => "Discrete GPU",
-            wgpu::DeviceType::VirtualGpu => "Virtual GPU",
-            wgpu::DeviceType::Cpu => "CPU",
         }
     }
 }

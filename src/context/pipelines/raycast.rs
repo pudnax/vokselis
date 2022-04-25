@@ -4,7 +4,7 @@ use wgpu::util::DeviceExt;
 
 use crate::{
     camera::CameraBinding,
-    state::{
+    context::{
         global_ubo::GlobalUniformBinding, hdr_backbuffer::HdrBackBuffer,
         volume_texture::VolumeTexture, Uniform,
     },
@@ -24,17 +24,12 @@ impl RaycastPipeline {
         path: &Path,
         shader_compiler: &mut ShaderCompiler,
     ) -> Self {
-        let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-            label: path.to_str(),
-            source: wgpu::ShaderSource::Wgsl(std::fs::read_to_string(path).unwrap().into()),
-        });
-        // pub fn from_path(device: &wgpu::Device, path: &Path, compiler: &mut ShaderCompiler) -> Self {
-        //     let shader = unsafe {
-        //         device.create_shader_module_spirv(&wgpu::ShaderModuleDescriptorSpirV {
-        //             label: path.to_str(),
-        //             source: compiler.create_shader_module(path).unwrap().into(),
-        //         })
-        //     };
+        let shader = unsafe {
+            device.create_shader_module_spirv(&wgpu::ShaderModuleDescriptorSpirV {
+                label: path.to_str(),
+                source: shader_compiler.create_shader_module(path).unwrap().into(),
+            })
+        };
         Self::new_with_module(device, &shader)
     }
 
@@ -72,7 +67,7 @@ impl RaycastPipeline {
             ],
             push_constant_ranges: &[],
         });
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Raycast Pipeline"),
             layout: Some(&layout),
             fragment: Some(wgpu::FragmentState {
@@ -97,8 +92,7 @@ impl RaycastPipeline {
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
-        });
-        pipeline
+        })
     }
 }
 
