@@ -1,25 +1,31 @@
-use std::path::{Path, PathBuf};
-use std::time::Instant;
+#![feature(get_mut_unchecked)]
 
-mod camera;
+use std::{
+    path::{Path, PathBuf},
+    time::Instant,
+};
+
+pub mod camera;
 pub mod context;
 mod utils;
 mod watcher;
 
 pub use camera::{Camera, CameraBinding};
-pub use context::{Context, GlobalUniformBinding, PipelineHandle, Uniform, VolumeTexture};
+pub use context::{
+    Context, GlobalUniformBinding, HdrBackBuffer, PipelineHandle, Uniform, VolumeTexture,
+};
 pub use utils::shader_compiler;
 pub use watcher::{ReloadablePipeline, Watcher};
 
 use color_eyre::eyre::Result;
 use pollster::FutureExt;
-use utils::input::Input;
-use utils::{frame_counter::FrameCounter, recorder::RecordEvent};
-use winit::dpi::PhysicalPosition;
-use winit::event::{DeviceEvent, MouseScrollDelta};
+use utils::{frame_counter::FrameCounter, input::Input, recorder::RecordEvent};
 use winit::{
-    dpi::PhysicalSize,
-    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+    dpi::{PhysicalPosition, PhysicalSize},
+    event::{
+        DeviceEvent, ElementState, Event, KeyboardInput, MouseScrollDelta, VirtualKeyCode,
+        WindowEvent,
+    },
     event_loop::{ControlFlow, EventLoop},
     window::Window,
 };

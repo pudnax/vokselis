@@ -1,5 +1,4 @@
 use std::{
-    cell::RefCell,
     path::{Path, PathBuf},
     rc::Rc,
     sync::Arc,
@@ -19,7 +18,7 @@ mod present_pipeline;
 mod screenshot;
 mod volume_texture;
 
-use hdr_backbuffer::HdrBackBuffer;
+pub use hdr_backbuffer::HdrBackBuffer;
 use present_pipeline::PresentPipeline;
 
 use crate::{
@@ -36,7 +35,7 @@ pub use volume_texture::VolumeTexture;
 
 use screenshot::ScreenshotCtx;
 
-pub type PipelineHandle<T> = Rc<RefCell<T>>;
+pub type PipelineHandle<T> = Rc<T>;
 
 pub struct Context {
     pub watcher: Watcher,
@@ -45,9 +44,8 @@ pub struct Context {
     adapter: wgpu::Adapter,
     pub device: Arc<wgpu::Device>,
     pub queue: wgpu::Queue,
-    pub surface: wgpu::Surface,
+    surface: wgpu::Surface,
     pub surface_config: wgpu::SurfaceConfiguration,
-    pub surface_format: wgpu::TextureFormat,
 
     screenshot_ctx: screenshot::ScreenshotCtx,
 
@@ -145,7 +143,7 @@ impl Context {
             present_shader,
             &mut shader_compiler,
         );
-        let present_pipeline = watcher.register(&present_shader, present_pipeline)?;
+        let present_pipeline = watcher.register(&present_shader, present_pipeline);
 
         Ok(Self {
             shader_compiler,
@@ -179,7 +177,6 @@ impl Context {
             queue,
             surface,
             surface_config,
-            surface_format,
         })
     }
 
@@ -261,7 +258,6 @@ impl Context {
                 label: Some("Present Encoder"),
             });
 
-        let present_pipeline = self.present_pipeline.borrow();
         let rgb = self.rgb_texture.create_view(&Default::default());
         let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Present Pass"),
@@ -286,7 +282,7 @@ impl Context {
             depth_stencil_attachment: None,
         });
 
-        present_pipeline.record(
+        self.present_pipeline.record(
             &mut rpass,
             &self.global_uniform_binding,
             &self.render_backbuffer.render_bind_group,

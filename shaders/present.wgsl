@@ -105,8 +105,8 @@ struct FragmentOutput {
 
 @fragment
 fn fs_main(vin: VertexOutput) -> FragmentOutput {
-    // let col = tex_sample(src_texture, in.uv);
-    // let col = texture_quadratic(src_texture, in.uv);
+    // let col = tex_sample(src_texture, vin.uv);
+    // let col = texture_quadratic(src_texture, vin.uv);
     let col = texture_bicubic(src_texture, vin.uv);
     let col = linear_to_srgb(col);
     return FragmentOutput(col, col);

@@ -6,7 +6,6 @@ use notify::{
 use winit::event_loop::EventLoop;
 
 use std::{
-    cell::RefCell,
     ffi::OsStr,
     path::{Path, PathBuf},
     rc::Rc,
@@ -23,15 +22,16 @@ pub trait ReloadablePipeline {
     fn reload(&mut self, device: &wgpu::Device, module: &wgpu::ShaderModule);
 }
 
-impl ReloadablePipeline for Rc<RefCell<dyn ReloadablePipeline>> {
+impl ReloadablePipeline for Rc<dyn ReloadablePipeline> {
     fn reload(&mut self, device: &wgpu::Device, module: &wgpu::ShaderModule) {
-        self.borrow_mut().reload(device, module);
+        let pipeline_ref = unsafe { Rc::get_mut_unchecked(self) };
+        pipeline_ref.reload(device, module);
     }
 }
 
 pub struct Watcher {
     _watcher: notify::RecommendedWatcher,
-    pub hash_dump: ContiniousHashMap<PathBuf, Rc<RefCell<dyn ReloadablePipeline>>>,
+    pub hash_dump: ContiniousHashMap<PathBuf, Rc<dyn ReloadablePipeline>>,
 }
 
 impl Watcher {
@@ -53,11 +53,11 @@ impl Watcher {
         &mut self,
         path: &impl AsRef<Path>,
         pipeline: T,
-    ) -> Result<PipelineHandle<T>> {
-        let pipeline_ref = Rc::new(RefCell::new(pipeline));
+    ) -> PipelineHandle<T> {
+        let pipeline_ref = Rc::new(pipeline);
         self.hash_dump
-            .push_value(path.as_ref().canonicalize()?, pipeline_ref.clone());
-        Ok(pipeline_ref)
+            .push_value(path.as_ref().canonicalize().unwrap(), pipeline_ref.clone());
+        pipeline_ref
     }
 }
 

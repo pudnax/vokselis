@@ -84,7 +84,7 @@ impl Demo for BasicTrig {
             path,
             &mut ctx.shader_compiler,
         );
-        let pipeline = ctx.watcher.register(&path, pipeline).unwrap();
+        let pipeline = ctx.watcher.register(&path, pipeline);
         Self { pipeline }
     }
 
@@ -94,8 +94,6 @@ impl Demo for BasicTrig {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Trig Encoder"),
             });
-
-        let pipeline = self.pipeline.borrow();
 
         {
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -111,7 +109,7 @@ impl Demo for BasicTrig {
                 depth_stencil_attachment: None,
             });
 
-            rpass.set_pipeline(&pipeline.pipeline);
+            rpass.set_pipeline(&self.pipeline.pipeline);
             rpass.set_bind_group(0, &ctx.global_uniform_binding.binding, &[]);
             rpass.set_bind_group(1, &ctx.camera_binding.bind_group, &[]);
             rpass.draw(0..3, 0..1);
