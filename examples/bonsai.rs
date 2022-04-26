@@ -16,7 +16,7 @@ impl Demo for Bonsai {
         let volume_texture = VolumeTexture::new(&ctx.device, &ctx.queue);
         let path = Path::new("shaders/raycast.wgsl");
         let pipeline = RaycastPipeline::from_path(&ctx.device, path, &mut ctx.shader_compiler);
-        let pipeline = ctx.watcher.register(&path, pipeline).unwrap();
+        let pipeline = ctx.watcher.register(&path, pipeline);
         Self {
             volume_texture,
             pipeline,
@@ -30,7 +30,6 @@ impl Demo for Bonsai {
                 label: Some("Volume Encoder"),
             });
 
-        let pipeline = self.pipeline.borrow();
         {
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Volume Pass"),
@@ -45,11 +44,11 @@ impl Demo for Bonsai {
                 depth_stencil_attachment: None,
             });
 
-            pipeline.record(
+            self.pipeline.record(
                 &mut rpass,
                 &ctx.global_uniform_binding,
                 &ctx.camera_binding,
-                &self.volume_texture,
+                &self.volume_texture.bind_group,
             );
         }
 

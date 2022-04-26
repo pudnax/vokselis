@@ -96,11 +96,13 @@ fn fs_main(vin: VertexOutput) -> @location(0) float4 {
     let dt = dt_scale * min(dt_vec.x, min(dt_vec.y, dt_vec.z));
     var p = eye + t_hit.x * ray_dir;
     for (var t = t_hit.x; t < t_hit.y; t = t + dt) {
-        var val = textureSampleLevel(volume, tex_sampler, p, 0.0).r;
+        let tex_content = textureSampleLevel(volume, tex_sampler, p, 0.0);
+        var val = tex_content.rgb;
+        let val_alpha = tex_content.a;
 
-        val = clamp(0.0, .5, val);
-        val = smoothstep(0.11, 1.0, val);
-        var val_color = vec4<f32>(vertigo(.72 - val), val);
+        val = clamp(vec3<f32>(0.0), vec3<f32>(1.), val);
+        val = smoothstep(vec3<f32>(0.0), vec3<f32>(2.), val);
+        var val_color = vec4<f32>(val, val_alpha);
 
 		// Opacity correction
         // val_color.a = 1.0 - pow(1.0 - val_color.a, dt_scale);
