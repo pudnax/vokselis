@@ -310,7 +310,9 @@ impl Context {
     pub fn register_shader_change(&mut self, path: PathBuf, shader: wgpu::ShaderModule) {
         if let Some(pipelines) = self.watcher.hash_dump.get_mut(&path) {
             for pipeline in pipelines.iter_mut() {
-                pipeline.reload(&self.device, &shader);
+                let pipeline_ref = unsafe { Rc::get_mut_unchecked(pipeline) };
+                pipeline_ref.reload(&self.device, &shader);
+                // pipeline.reload(&self.device, &shader);
             }
         }
     }

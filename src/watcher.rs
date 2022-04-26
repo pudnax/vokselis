@@ -22,13 +22,6 @@ pub trait ReloadablePipeline {
     fn reload(&mut self, device: &wgpu::Device, module: &wgpu::ShaderModule);
 }
 
-impl ReloadablePipeline for Rc<dyn ReloadablePipeline> {
-    fn reload(&mut self, device: &wgpu::Device, module: &wgpu::ShaderModule) {
-        let pipeline_ref = unsafe { Rc::get_mut_unchecked(self) };
-        pipeline_ref.reload(device, module);
-    }
-}
-
 pub struct Watcher {
     _watcher: notify::RecommendedWatcher,
     pub hash_dump: ContiniousHashMap<PathBuf, Rc<dyn ReloadablePipeline>>,
