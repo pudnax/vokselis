@@ -47,7 +47,7 @@ impl Default for ShaderCompiler {
 
 // https://github.com/gfx-rs/wgpu/blob/master/wgpu-hal/src/vulkan/adapter.rs#L1166
 fn get_options() -> spv::Options {
-    let mut capabilities = vec![
+    let capabilities = vec![
         spv::Capability::Shader,
         spv::Capability::Matrix,
         spv::Capability::Sampled1D,
@@ -60,10 +60,9 @@ fn get_options() -> spv::Options {
         // adapter supports. It's not the responsibility of SPV-out
         // translation to handle the storage support for formats.
         spv::Capability::StorageImageExtendedFormats,
+        spv::Capability::MultiView,
         //TODO: fill out the rest
     ];
-
-    capabilities.push(spv::Capability::MultiView);
 
     let mut flags = spv::WriterFlags::empty();
     flags.set(
@@ -86,22 +85,12 @@ fn get_options() -> spv::Options {
         binding_map: BindingMap::new(),
         lang_version: (1, 0),
         flags,
-        capabilities: Some(capabilities.iter().cloned().collect()),
+        capabilities: Some(capabilities.into_iter().collect()),
         bounds_check_policies: naga::proc::BoundsCheckPolicies {
-                    index: naga::proc::BoundsCheckPolicy::Unchecked,
-                    buffer:
-                    // if self.private_caps.robust_buffer_access {
-                        naga::proc::BoundsCheckPolicy::Unchecked,
-                    // } else {
-                        // naga::proc::BoundsCheckPolicy::Restrict,
-                    // },
-                    image:
-                    // if self.private_caps.robust_image_access {
-                        naga::proc::BoundsCheckPolicy::Unchecked,
-                    // } else {
-                        // naga::proc::BoundsCheckPolicy::Restrict
-                    // },
-                },
+            index: naga::proc::BoundsCheckPolicy::Unchecked,
+            buffer: naga::proc::BoundsCheckPolicy::Unchecked,
+            image: naga::proc::BoundsCheckPolicy::Unchecked,
+        },
     }
 }
 
