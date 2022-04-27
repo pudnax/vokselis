@@ -4,6 +4,7 @@ use vokselis::{
     shader_compiler::ShaderCompiler, GlobalUniformBinding, ReloadablePipeline, Uniform,
 };
 
+#[allow(dead_code)]
 pub struct XorCompute {
     pipeline: wgpu::ComputePipeline,
     xor_texture: wgpu::Texture,

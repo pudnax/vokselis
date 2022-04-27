@@ -12,11 +12,11 @@ use std::{
     sync::Arc,
 };
 
-use crate::SHADER_FOLDER;
 use crate::{
     context::PipelineHandle,
     utils::{shader_compiler::ShaderCompiler, ContiniousHashMap},
 };
+use crate::{shader_compiler::CompilerError, SHADER_FOLDER};
 
 pub trait ReloadablePipeline {
     fn reload(&mut self, device: &wgpu::Device, module: &wgpu::ShaderModule);
@@ -73,20 +73,31 @@ fn watch_callback(
                     .into_iter()
                     .filter(|p| p.extension() == Some(OsStr::new("wgsl")))
                 {
-                    if let Ok(x) = shader_compiler.create_shader_module(&path) {
-                        let device_ref = device.upgrade().unwrap();
-                        let module = unsafe {
-                            device_ref.create_shader_module_spirv(
-                                &wgpu::ShaderModuleDescriptorSpirV {
-                                    label: path.to_str(),
-                                    source: x.into(),
-                                },
-                            )
-                        };
-                        proxy
-                            .send_event((path, module))
-                            .expect("Event Loop have been dropped");
-                        crate::utils::green_blink();
+                    match shader_compiler.create_shader_module(&path) {
+                        Ok(x) => {
+                            let device_ref = device.upgrade().unwrap();
+                            let module = unsafe {
+                                device_ref.create_shader_module_spirv(
+                                    &wgpu::ShaderModuleDescriptorSpirV {
+                                        label: path.to_str(),
+                                        source: x.into(),
+                                    },
+                                )
+                            };
+                            proxy
+                                .send_event((path, module))
+                                .expect("Event Loop have been dropped");
+                            crate::utils::green_blink();
+                        }
+                        Err(err) => match err {
+                            CompilerError::Compile { .. } => {
+                                eprintln!(
+                                    "Compilation error in file: {:?}\n{err}",
+                                    path.file_name().unwrap()
+                                );
+                            }
+                            _ => eprintln!("{err}"),
+                        },
                     };
                 }
             }

@@ -25,7 +25,7 @@ use crate::{
     camera::{Camera, CameraBinding},
     utils::{frame_counter::FrameCounter, shader_compiler::ShaderCompiler},
     utils::{input::Input, ImageDimentions},
-    watcher::{ReloadablePipeline, Watcher},
+    watcher::Watcher,
 };
 
 pub use global_ubo::GlobalUniformBinding;
@@ -312,7 +312,6 @@ impl Context {
             for pipeline in pipelines.iter_mut() {
                 let pipeline_ref = unsafe { Rc::get_mut_unchecked(pipeline) };
                 pipeline_ref.reload(&self.device, &shader);
-                // pipeline.reload(&self.device, &shader);
             }
         }
     }
