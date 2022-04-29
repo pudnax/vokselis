@@ -30,7 +30,6 @@ use crate::{
 
 pub use global_ubo::GlobalUniformBinding;
 pub use global_ubo::Uniform;
-pub use pipelines::raycast;
 pub use volume_texture::VolumeTexture;
 
 use screenshot::ScreenshotCtx;
@@ -310,6 +309,7 @@ impl Context {
     pub fn register_shader_change(&mut self, path: PathBuf, shader: wgpu::ShaderModule) {
         if let Some(pipelines) = self.watcher.hash_dump.get_mut(&path) {
             for pipeline in pipelines.iter_mut() {
+                // SAFETY: no safety
                 let pipeline_ref = unsafe { Rc::get_mut_unchecked(pipeline) };
                 pipeline_ref.reload(&self.device, &shader);
             }

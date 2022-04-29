@@ -1,22 +1,23 @@
 use std::path::Path;
 
 use color_eyre::eyre::Result;
-use vokselis::{context::raycast::RaycastPipeline, run, Camera, Demo, PipelineHandle};
+use vokselis::{run, Camera, Demo, PipelineHandle};
 use winit::{dpi::LogicalSize, event_loop::EventLoop, window::WindowBuilder};
 
+mod raycast;
 mod xor_compute;
 
 struct Xor {
     xor_texture: PipelineHandle<xor_compute::XorCompute>,
-    raycast: PipelineHandle<RaycastPipeline>,
+    raycast: PipelineHandle<raycast::RaycastPipeline>,
 }
 
 impl Demo for Xor {
     fn init(ctx: &mut vokselis::Context) -> Self {
-        let path = Path::new("shaders/raycast.wgsl");
+        let path = Path::new("shaders/raycast_compute.wgsl");
         let raycast = ctx.watcher.register(
             &path,
-            RaycastPipeline::from_path(&ctx.device, &path, &mut ctx.shader_compiler),
+            raycast::RaycastPipeline::from_path(&ctx.device, &path, &mut ctx.shader_compiler),
         );
         let path = Path::new("shaders/xor.wgsl");
         let xor_texture = ctx.watcher.register(
@@ -53,24 +54,16 @@ impl Demo for Xor {
             });
 
         {
-            let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Volume Pass"),
-                color_attachments: &[wgpu::RenderPassColorAttachment {
-                    view: &ctx.render_backbuffer.texture_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: true,
-                    },
-                }],
-                depth_stencil_attachment: None,
+            let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("Raycast Pass"),
             });
 
             self.raycast.record(
-                &mut rpass,
+                &mut cpass,
                 &ctx.global_uniform_binding,
                 &ctx.camera_binding,
-                &self.xor_texture.render_bind_group,
+                &self.xor_texture.storage_bind_group,
+                &ctx.render_backbuffer.storage_bind_group,
             );
         }
 

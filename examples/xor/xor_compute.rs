@@ -13,7 +13,7 @@ pub struct XorCompute {
 }
 
 impl XorCompute {
-    pub const XOR_TEX_DESC_COMPUTE: wgpu::BindGroupLayoutDescriptor<'static> =
+    pub const DESC_COMPUTE: wgpu::BindGroupLayoutDescriptor<'static> =
         wgpu::BindGroupLayoutDescriptor {
             label: Some("Storage Texture Layour"),
             entries: &[wgpu::BindGroupLayoutEntry {
@@ -27,7 +27,7 @@ impl XorCompute {
                 count: None,
             }],
         };
-    pub const XOR_TEX_DESC_RENDER: wgpu::BindGroupLayoutDescriptor<'static> =
+    pub const DESC_RENDER: wgpu::BindGroupLayoutDescriptor<'static> =
         wgpu::BindGroupLayoutDescriptor {
             label: Some("Storage Texture Layour"),
             entries: &[
@@ -84,7 +84,7 @@ impl XorCompute {
         let pipeline = Self::make_pipeline(device, module);
         let storage_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("XOR Compute Bind Group"),
-            layout: &device.create_bind_group_layout(&Self::XOR_TEX_DESC_COMPUTE),
+            layout: &device.create_bind_group_layout(&Self::DESC_COMPUTE),
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: wgpu::BindingResource::TextureView(&view),
@@ -99,7 +99,7 @@ impl XorCompute {
         });
         let render_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("XOR Render Bind Group"),
-            layout: &device.create_bind_group_layout(&Self::XOR_TEX_DESC_RENDER),
+            layout: &device.create_bind_group_layout(&Self::DESC_RENDER),
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
@@ -122,7 +122,7 @@ impl XorCompute {
 
     fn make_pipeline(device: &wgpu::Device, module: &wgpu::ShaderModule) -> wgpu::ComputePipeline {
         let global_bind_group_layout = device.create_bind_group_layout(&Uniform::DESC);
-        let storage_texture_layout = device.create_bind_group_layout(&Self::XOR_TEX_DESC_COMPUTE);
+        let storage_texture_layout = device.create_bind_group_layout(&Self::DESC_COMPUTE);
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("XOR Pipeline Layout"),
             bind_group_layouts: &[&global_bind_group_layout, &storage_texture_layout],

@@ -1,6 +1,7 @@
 use std::path::Path;
 
-use vokselis::context::raycast::RaycastPipeline;
+mod raycast;
+use raycast::RaycastPipeline;
 use vokselis::{run, Camera, Demo, PipelineHandle, VolumeTexture};
 
 use color_eyre::eyre::Result;
@@ -14,7 +15,7 @@ struct Bonsai {
 impl Demo for Bonsai {
     fn init(ctx: &mut vokselis::Context) -> Self {
         let volume_texture = VolumeTexture::new(&ctx.device, &ctx.queue);
-        let path = Path::new("shaders/raycast.wgsl");
+        let path = Path::new("shaders/raycast_naive.wgsl");
         let pipeline = RaycastPipeline::from_path(&ctx.device, path, &mut ctx.shader_compiler);
         let pipeline = ctx.watcher.register(&path, pipeline);
         Self {

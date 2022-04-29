@@ -84,6 +84,8 @@ fn fs_main(vin: VertexOutput) -> @location(0) float4 {
     var ray_dir = normalize(vin.ray_dir);
     let eye = vin.transformed_eye;
 
+    let background = vec4<f32>(0.1, 0.2, 0.3, 0.01);
+
     var t_hit = intersect_box(eye, ray_dir);
     if (t_hit.x > t_hit.y) {
         return vec4<f32>(0., 0., 0., 1.);
@@ -98,18 +100,16 @@ fn fs_main(vin: VertexOutput) -> @location(0) float4 {
     for (var t = t_hit.x; t < t_hit.y; t = t + dt) {
         let tex_content = textureSampleLevel(volume, tex_sampler, p, 0.0);
         var val = tex_content.rgb;
-        let val_alpha = tex_content.a;
+        let val_alpha = pow(tex_content.a, 2.0);
 
-        val = clamp(vec3<f32>(0.0), vec3<f32>(1.), val);
-        val = smoothstep(vec3<f32>(0.0), vec3<f32>(2.), val);
-        var val_color = vec4<f32>(val, val_alpha);
+        val = clamp(vec3<f32>(0.4), vec3<f32>(.9), val);
+        val = smoothstep(vec3<f32>(0.10), vec3<f32>(1.2), val);
+        var val_color = vec4<f32>(vertigo(val.r), val.r);
 
 		// Opacity correction
         // val_color.a = 1.0 - pow(1.0 - val_color.a, dt_scale);
-        var tmp = color.rgb + (1.0 - color.a) * val_color.a * val_color.xyz;
-        color.r = tmp.r;
-        color.g = tmp.g;
-        color.b = tmp.b;
+        var tmp = color.rgb + (1.0 - color.a) * val_color.a * val_color.xyz + background.rgb * background.a * (1. - val_alpha);
+        color = vec4<f32>(tmp, color.a);
         color.a = color.a + (1.0 - color.a) * val_color.a;
         if (color.a >= 0.95) {
 			break;

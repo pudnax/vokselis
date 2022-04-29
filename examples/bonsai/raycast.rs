@@ -2,11 +2,11 @@ use std::path::Path;
 
 use wgpu::util::DeviceExt;
 
-use crate::{
+use vokselis::{
     camera::CameraBinding,
-    context::{global_ubo::GlobalUniformBinding, hdr_backbuffer::HdrBackBuffer, Uniform},
-    utils::shader_compiler::ShaderCompiler,
-    watcher::ReloadablePipeline,
+    context::{GlobalUniformBinding, HdrBackBuffer, Uniform},
+    shader_compiler::ShaderCompiler,
+    ReloadablePipeline,
 };
 
 pub struct RaycastPipeline {

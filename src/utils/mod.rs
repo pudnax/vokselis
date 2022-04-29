@@ -12,6 +12,11 @@ pub mod input;
 pub mod recorder;
 pub mod shader_compiler;
 
+pub fn dispatch_optimal(len: u32, subgroup_size: u32) -> u32 {
+    let padded_size = (subgroup_size - len % subgroup_size) % subgroup_size;
+    (len + padded_size) / subgroup_size
+}
+
 pub fn create_folder<P: AsRef<Path>>(name: P) -> io::Result<()> {
     match std::fs::create_dir(name) {
         Ok(_) => {}
