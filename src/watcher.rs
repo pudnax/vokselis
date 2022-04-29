@@ -90,11 +90,12 @@ fn watch_callback(
                             crate::utils::green_blink();
                         }
                         Err(err) => match err {
-                            CompilerError::Compile { .. } => {
-                                eprintln!(
-                                    "Compilation error in file: {:?}\n{err}",
-                                    path.file_name().unwrap()
-                                );
+                            CompilerError::Compile { error, source } => {
+                                let file_name = match path.file_name().and_then(|x| x.to_str()) {
+                                    Some(name) => name,
+                                    None => "wgsl",
+                                };
+                                error.emit_to_stderr_with_path(&source, file_name);
                             }
                             _ => eprintln!("{err}"),
                         },
