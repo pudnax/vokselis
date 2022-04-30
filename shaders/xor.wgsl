@@ -16,8 +16,11 @@ var xor_tex: texture_storage_3d<rgba8unorm, write>;
 @compute @workgroup_size(8, 8, 8)
 fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let t = un.time;
-    var pos = (vec3<f32>(global_id)) * .2 + vec3<f32>(t, sin(t * 2.), t * 0.5);
-    let res = 9.;
+    let dims = vec3<f32>(textureDimensions(xor_tex));
+    var coord = (vec3<f32>(global_id) - dims / 2.) / dims;
+    let pos = coord * 28. + vec3(t, sin(t * 2.), t * 0.5);
+    let res = 6.;
     let val = f32(i32(pos.x % res) & i32(pos.y % res) & i32(pos.z % res));
-    textureStore(xor_tex, global_id, vec4<f32>(val * 0.5, val, val, val / 2.));
+    let alpha = val * step(length(coord), 0.5);
+    textureStore(xor_tex, global_id, vec4<f32>(coord, alpha));
 }
