@@ -62,7 +62,7 @@ impl Demo for Xor {
                 &mut cpass,
                 &ctx.global_uniform_binding,
                 &ctx.camera_binding,
-                &self.xor_texture.storage_bind_group,
+                &self.xor_texture.render_bind_group,
                 &ctx.render_backbuffer.storage_bind_group,
             );
         }

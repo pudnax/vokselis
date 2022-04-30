@@ -19,5 +19,5 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     var pos = (vec3<f32>(global_id)) * .2 + vec3<f32>(t, sin(t * 2.), t * 0.5);
     let res = 9.;
     let val = f32(i32(pos.x % res) & i32(pos.y % res) & i32(pos.z % res));
-    textureStore(xor_tex, global_id, vec4<f32>(val * 0.5, 1. - val, val, val / 2.));
+    textureStore(xor_tex, global_id, vec4<f32>(val * 0.5, val, val, val / 2.));
 }

@@ -33,7 +33,8 @@ impl XorCompute {
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT
+                        .union(wgpu::ShaderStages::COMPUTE),
                     ty: wgpu::BindingType::Texture {
                         sample_type: wgpu::TextureSampleType::Float { filterable: true },
                         view_dimension: wgpu::TextureViewDimension::D3,
@@ -43,7 +44,8 @@ impl XorCompute {
                 },
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT
+                        .union(wgpu::ShaderStages::COMPUTE),
                     ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                     count: None,
                 },
@@ -92,7 +94,7 @@ impl XorCompute {
         });
 
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("Present Sampler"),
+            label: Some("Volume Sampler"),
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Linear,
             ..Default::default()

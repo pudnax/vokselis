@@ -22,7 +22,9 @@ var<uniform> un: Uniform;
 @group(1) @binding(0)
 var<uniform> cam: Camera;
 @group(2) @binding(0)
-var volume: texture_storage_3d<rgba8unorm, read>;
+var volume: texture_3d<f32>;
+@group(2) @binding(1)
+var volume_sampler: sampler;
 @group(3) @binding(0)
 var out_tex: texture_storage_2d<rgba16float, write>;
 
@@ -53,29 +55,32 @@ fn get_cam(eye: float3, tar: float3) -> mat3x3<f32> {
     return mat3x3<f32>(xaxis, yaxis, zaxis);
 }
 
-fn get_color(org: float3, dir: float3, tmin: f32, tmax: f32, clear_color: float3) -> float4 {
-    var t_color = vec4<f32>(clear_color, 0.);
+fn get_color(org: float3, dir: float3, tmin: f32, tmax: f32, clear_color: float4) -> float4 {
+    var t_color = vec4<f32>(0.);
     var t_curr = tmax;
 
-    var fixed_step = max((tmax - tmin) / f32(NUM_STEPS), 0.001);
+    var dt_vec = 1.0 / (vec3<f32>(256.) * abs(dir));
+    let dt_scale = 1.0;
+    let dt = dt_scale * min(dt_vec.x, min(dt_vec.y, dt_vec.z));
     let block_size = vec3<f32>(textureDimensions(volume));
 
-    var samp = vec3<i32>((block_size / 2.) * (org + t_curr * dir + 1.));
-    var new_read = textureLoad(volume, samp);
+    var p = org + tmin + dir;
 
-    for (var i = 0; i < NUM_STEPS; i++) {
-        // if (t_curr < tmin) { break; }
+    for (var t = tmin; t < tmax; t = t + dt) {
+        let samp = (p + 0.);// * (block_size / 2.);
+        let vol_content = textureSampleLevel(volume, volume_sampler, p, 0.0);
 
-        let alpha_squared = pow(new_read.a, 1.);
+        let vol_color = vol_content.rgb;
+        let vol_alpha = pow(vol_content.a, 2.);
 
-        t_color = vec4<f32>(new_read.rgb + alpha_squared + t_color.rgb * t_color.a * (1. - alpha_squared), t_color.a);
-        t_color.a = alpha_squared + t_color.a * (1. - alpha_squared);
+        let tmp = t_color.rgb + (1.0 - t_color.a) * vol_alpha * vol_color + clear_color.rgb * clear_color.a * (1.0 - vol_alpha);
+        t_color = vec4(tmp, t_color.a);
+        t_color.a = t_color.a + (1.0 - t_color.a) * vol_alpha;
 
-        t_curr -= fixed_step;
-
-        samp = vec3<i32>((block_size / 2.) * (org + t_curr * dir + 1.));
-
-        new_read = textureLoad(volume, samp);
+        if (t_color.a >= 0.95) {
+	     	break;
+        }
+        p = p + dir * t;
     }
 
     return t_color;
@@ -97,15 +102,20 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     let clear_color = vec4<f32>(0.1, 0.3, 0.3, 0.01);
 
-    if (f32(global_id.xy.x) < dims.x && f32(global_id.y) < dims.y) {
+    if (any(vec2<f32>(global_id.xy) < dims)) {
         var t_hit = intersect_box(org, dir);
         t_hit = t_hit.yx;
         if (t_hit.x > t_hit.y) {
             t_hit.x = max(t_hit.x, 0.0);
-            let col = get_color(org, dir, t_hit.x, t_hit.y, clear_color.rgb);
+            let col = get_color(org, dir, t_hit.x, t_hit.y, clear_color);
             textureStore(out_tex, global_id, col);
         } else {
             textureStore(out_tex, global_id, clear_color);
         }
     }
+
+    let block_size = vec3<f32>(textureDimensions(volume));
+    let samp = (vec3<f32>(start_x, start_y, 0.) + .5);// * block_size / 2.;
+    let col: vec4<f32> = textureSample(volume, volume_sampler, vec3<f32>(samp));
+    textureStore(out_tex, global_id, col);
 }

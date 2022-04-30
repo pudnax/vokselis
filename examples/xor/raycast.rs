@@ -37,8 +37,8 @@ impl RaycastPipeline {
     fn make_pipeline(device: &wgpu::Device, module: &wgpu::ShaderModule) -> wgpu::ComputePipeline {
         let global_bind_group_layout = device.create_bind_group_layout(&Uniform::DESC);
         let camera_bind_group_layout = device.create_bind_group_layout(&CameraBinding::DESC);
-        let storage_bind_group_layout =
-            device.create_bind_group_layout(&xor_compute::XorCompute::DESC_COMPUTE);
+        let volume_bind_group_layout =
+            device.create_bind_group_layout(&xor_compute::XorCompute::DESC_RENDER);
         let output_texture_bind_group_layot =
             device.create_bind_group_layout(&HdrBackBuffer::DESC_COMPUTE);
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -46,7 +46,7 @@ impl RaycastPipeline {
             bind_group_layouts: &[
                 &global_bind_group_layout,
                 &camera_bind_group_layout,
-                &storage_bind_group_layout,
+                &volume_bind_group_layout,
                 &output_texture_bind_group_layot,
             ],
             push_constant_ranges: &[],
