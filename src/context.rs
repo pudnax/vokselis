@@ -45,6 +45,7 @@ pub struct Context {
     pub queue: wgpu::Queue,
     surface: wgpu::Surface,
     pub surface_config: wgpu::SurfaceConfiguration,
+    pub limits: wgpu::Limits,
 
     screenshot_ctx: screenshot::ScreenshotCtx,
 
@@ -176,6 +177,7 @@ impl Context {
             queue,
             surface,
             surface_config,
+            limits,
         })
     }
 

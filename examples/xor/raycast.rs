@@ -38,7 +38,7 @@ impl RaycastPipeline {
         let global_bind_group_layout = device.create_bind_group_layout(&Uniform::DESC);
         let camera_bind_group_layout = device.create_bind_group_layout(&CameraBinding::DESC);
         let volume_bind_group_layout =
-            device.create_bind_group_layout(&xor_compute::XorCompute::DESC_RENDER);
+            device.create_bind_group_layout(&xor_compute::XorCompute::DESC_COMPUTE);
         let output_texture_bind_group_layot =
             device.create_bind_group_layout(&HdrBackBuffer::DESC_COMPUTE);
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {

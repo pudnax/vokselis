@@ -18,9 +18,7 @@ var<uniform> un: Uniform;
 @group(1) @binding(0)
 var<uniform> cam: Camera;
 @group(2) @binding(0)
-var volume: texture_3d<f32>;
-@group(2) @binding(1)
-var volume_sampler: sampler;
+var volume: texture_storage_3d<rgba8unorm, read>;
 @group(3) @binding(0)
 var out_tex: texture_storage_2d<rgba16float, write>;
 
@@ -32,7 +30,7 @@ let MIN_DIST: f32 = 0.0;
 let MAX_DIST: f32 = 5.0;
 
 fn intersect_box(orig: vec3<f32>, dir: vec3<f32>) -> vec2<f32> {
-    let box_min = vec3(0.0);
+    let box_min = vec3(-1.0);
     let box_max = vec3(1.0);
     let inv_dir = 1.0 / dir;
     let tmin_tmp = (box_min - orig) * inv_dir;
@@ -53,13 +51,13 @@ fn get_cam(eye: vec3<f32>, tar: vec3<f32>) -> mat3x3<f32> {
 
 fn get_col2(eye: vec3<f32>, dir: vec3<f32>, tmin: f32, tmax: f32, clear_color: vec4<f32>) -> vec4<f32> {
     var color = vec4(0.0);
-    let dims = vec3<f32>(textureDimensions(volume));
-    let dt_vec = 1.0 / (dims * abs(dir));
+    let block_size = vec3<f32>(textureDimensions(volume));
+    let dt_vec = 1.0 / (block_size * abs(dir));
     let dt_scale = 1.0;
-    let dt = dt_scale * min(dt_vec.x, min(dt_vec.y, dt_vec.z));
+    let dt = max(dt_scale * min(dt_vec.x, min(dt_vec.y, dt_vec.z)), 0.01);
     for (var t = tmin; t < tmax; t = t + dt) {
         var p = eye + t * dir;
-        let vol_content = textureSampleLevel(volume, volume_sampler, p, 0.0);
+        let vol_content = textureLoad(volume, vec3<i32>((p + 1.) * (block_size / 2.)));
 
         var vol_color = vol_content.rgb;
         let vol_alpha = pow(vol_content.a, 3.0);
@@ -87,11 +85,11 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     let zoom = 1.;
     var eye = vec3(2., 1., 2.);
-    eye = 3. * vec3(cos(time), 0., sin(time)) + vec3(0., 1., 0.);
-    let camera = get_cam(eye, vec3(0.5));
+    eye = 6. * vec3(cos(time), 0., sin(time)) + vec3(0., 1., 0.);
+    let camera = get_cam(eye, vec3(0.0));
     let dir = camera * vec3(start_x, start_y, zoom);
 
-    let clear_color = vec4<f32>(0.1, 0.3, 0.3, 0.001);
+    let clear_color = vec4<f32>(0.1, 0.3, 0.3, 0.01);
 
     if (any(vec2<f32>(global_id.xy) < dims)) {
         var t_hit = intersect_box(eye, dir);
