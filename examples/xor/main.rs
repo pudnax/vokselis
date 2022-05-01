@@ -9,7 +9,7 @@ use winit::{dpi::LogicalSize, event_loop::EventLoop, window::WindowBuilder};
 mod raycast;
 mod xor_compute;
 
-const TILE_SIZE: u32 = 64;
+const TILE_SIZE: u32 = 256;
 
 #[derive(Debug)]
 enum Mode {
@@ -24,10 +24,11 @@ pub struct Offset {
     y: f32,
 }
 
-impl Offset {
-    pub fn new(x: f32, y: f32) -> Self {
-        Self { x, y }
-    }
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct TimestampData {
+    start: u64,
+    end: u64,
 }
 
 struct Xor {
@@ -39,6 +40,10 @@ struct Xor {
     offset_buffer_bind_group: wgpu::BindGroup,
     buffer_len: usize,
     aligned_offset: u32,
+
+    timestamp: wgpu::QuerySet,
+    timestamp_period: f32,
+    timestamp_buffer: wgpu::Buffer,
 }
 
 impl Demo for Xor {
@@ -74,12 +79,12 @@ impl Demo for Xor {
         let padding = (min_align - std::mem::size_of::<Offset>() as u32 % min_align) % min_align;
         let offsets = {
             let mut res = vec![];
-            for y in 0..(h / TILE_SIZE).max(1) {
-                for x in 0..(w / TILE_SIZE).max(1) {
-                    res.extend(bytemuck::bytes_of(&Offset::new(
-                        (x * TILE_SIZE) as f32,
-                        (y * TILE_SIZE) as f32,
-                    )));
+            for y in 0..((h / TILE_SIZE) + 1) {
+                for x in 0..((w / TILE_SIZE) + 1) {
+                    res.extend(bytemuck::bytes_of(&Offset {
+                        x: (x * TILE_SIZE) as f32,
+                        y: (y * TILE_SIZE) as f32,
+                    }));
                     res.extend(std::iter::repeat(0).take(padding as _));
                 }
             }
@@ -112,6 +117,21 @@ impl Demo for Xor {
             }],
         });
 
+        let timestamp = ctx.device.create_query_set(&wgpu::QuerySetDescriptor {
+            label: None,
+            count: 2,
+            ty: wgpu::QueryType::Timestamp,
+        });
+        let timestamp_period = ctx.queue.get_timestamp_period();
+        let timestamp_buffer = ctx.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Query Buffer"),
+            size: std::mem::size_of::<TimestampData>() as _,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+
+        println!("Change rendering mode on F1");
+
         Self {
             xor_texture,
             raycast_single,
@@ -121,6 +141,10 @@ impl Demo for Xor {
             aligned_offset,
             offset_buffer_bind_group,
             buffer_len,
+
+            timestamp,
+            timestamp_period,
+            timestamp_buffer,
         }
     }
 
@@ -138,6 +162,29 @@ impl Demo for Xor {
             .record(&mut cpass, &ctx.global_uniform_binding);
         drop(cpass);
         ctx.queue.submit(Some(encoder.finish()));
+
+        if ctx.global_uniform.frame % 100 == 0 {
+            let _ = self
+                .timestamp_buffer
+                .slice(..)
+                .map_async(wgpu::MapMode::Read);
+            {
+                ctx.device.poll(wgpu::Maintain::Wait);
+                let timestamp_view = self
+                    .timestamp_buffer
+                    .slice(..std::mem::size_of::<TimestampData>() as wgpu::BufferAddress)
+                    .get_mapped_range();
+                let timestamp_data: &TimestampData = bytemuck::from_bytes(&*timestamp_view);
+                let nanoseconds =
+                    (timestamp_data.end - timestamp_data.start) as f32 * self.timestamp_period;
+                let time_period = std::time::Duration::from_nanos(nanoseconds as _);
+                eprintln!(
+                    "Time on raycast shader: {:?} ({:?})",
+                    time_period, self.mode
+                );
+            }
+            self.timestamp_buffer.unmap();
+        }
     }
 
     fn update_input(&mut self, event: winit::event::WindowEvent) {
@@ -168,45 +215,48 @@ impl Demo for Xor {
                 label: Some("Volume Encoder"),
             });
 
-        {
-            let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("Raycast Pass"),
-            });
+        let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+            label: Some("Raycast Pass"),
+        });
 
-            match self.mode {
-                Mode::SinglePass => {
-                    cpass.set_pipeline(&self.raycast_single.pipeline);
+        cpass.write_timestamp(&self.timestamp, 0);
 
-                    cpass.set_bind_group(0, &ctx.global_uniform_binding.binding, &[]);
-                    cpass.set_bind_group(1, &ctx.camera_binding.bind_group, &[]);
-                    cpass.set_bind_group(2, &self.xor_texture.storage_bind_group, &[]);
-                    cpass.set_bind_group(3, &ctx.render_backbuffer.storage_bind_group, &[]);
-                    cpass.set_bind_group(4, &self.offset_buffer_bind_group, &[0]);
-                    let (width, height) = HdrBackBuffer::DEFAULT_RESOLUTION;
-                    cpass.dispatch(dispatch_optimal(width, 16), dispatch_optimal(height, 16), 1);
-                }
-                Mode::Tile => {
-                    cpass.set_pipeline(&self.raycast_tile.pipeline);
+        match self.mode {
+            Mode::SinglePass => {
+                cpass.set_pipeline(&self.raycast_single.pipeline);
 
-                    cpass.set_bind_group(0, &ctx.global_uniform_binding.binding, &[]);
-                    cpass.set_bind_group(1, &ctx.camera_binding.bind_group, &[]);
-                    cpass.set_bind_group(2, &self.xor_texture.storage_bind_group, &[]);
-                    cpass.set_bind_group(3, &ctx.render_backbuffer.storage_bind_group, &[]);
-                    for offset in 0..self.buffer_len {
-                        cpass.set_bind_group(
-                            4,
-                            &self.offset_buffer_bind_group,
-                            &[offset as u32 * self.aligned_offset],
-                        );
-                        cpass.dispatch(
-                            dispatch_optimal(TILE_SIZE, 8),
-                            dispatch_optimal(TILE_SIZE, 8),
-                            1,
-                        );
-                    }
+                cpass.set_bind_group(0, &ctx.global_uniform_binding.binding, &[]);
+                cpass.set_bind_group(1, &ctx.camera_binding.bind_group, &[]);
+                cpass.set_bind_group(2, &self.xor_texture.storage_bind_group, &[]);
+                cpass.set_bind_group(3, &ctx.render_backbuffer.storage_bind_group, &[]);
+                cpass.set_bind_group(4, &self.offset_buffer_bind_group, &[0]);
+                let (width, height) = HdrBackBuffer::DEFAULT_RESOLUTION;
+                cpass.dispatch(dispatch_optimal(width, 8), dispatch_optimal(height, 8), 1);
+            }
+            Mode::Tile => {
+                cpass.set_pipeline(&self.raycast_tile.pipeline);
+
+                cpass.set_bind_group(0, &ctx.global_uniform_binding.binding, &[]);
+                cpass.set_bind_group(1, &ctx.camera_binding.bind_group, &[]);
+                cpass.set_bind_group(2, &self.xor_texture.storage_bind_group, &[]);
+                cpass.set_bind_group(3, &ctx.render_backbuffer.storage_bind_group, &[]);
+                for offset in 0..self.buffer_len {
+                    cpass.set_bind_group(
+                        4,
+                        &self.offset_buffer_bind_group,
+                        &[offset as u32 * self.aligned_offset],
+                    );
+                    cpass.dispatch(
+                        dispatch_optimal(TILE_SIZE, 16),
+                        dispatch_optimal(TILE_SIZE, 16),
+                        1,
+                    );
                 }
             }
         }
+        cpass.write_timestamp(&self.timestamp, 1);
+        drop(cpass);
+        encoder.resolve_query_set(&self.timestamp, 0..2, &self.timestamp_buffer, 0);
 
         ctx.queue.submit(Some(encoder.finish()));
     }

@@ -102,21 +102,21 @@ fn render(global_id: vec2<u32>, offset_x: f32, offset_y: f32) -> vec4<f32> {
         var t_hit = intersect_box(eye, dir);
         if (t_hit.x < t_hit.y) {
             t_hit.x = max(t_hit.x, 0.0);
-            color = get_col2(eye, dir, t_hit.x, t_hit.y, clear_color);
+            color = vec4(get_col2(eye, dir, t_hit.x, t_hit.y, clear_color).rgb, 1.);
         } else {
-            color = clear_color;
+            color = vec4(clear_color.rgb, 1.);
         }
     }
     return color;
 }
 
-@compute @workgroup_size(16, 16, 1)
+@compute @workgroup_size(8, 8, 1)
 fn single(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let color = render(global_id.xy, 0., 0.);
     textureStore(out_tex, global_id.xy, color);
 }
 
-@compute @workgroup_size(8, 8, 1)
+@compute @workgroup_size(16, 16, 1)
 fn tile(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let color = render(global_id.xy, dyn_offset.x, dyn_offset.y);
     let offset = vec2<u32>(vec2(dyn_offset.x, dyn_offset.y));
