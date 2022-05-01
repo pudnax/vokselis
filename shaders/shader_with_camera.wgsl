@@ -10,7 +10,8 @@ struct Uniform {
 
 struct Camera {
 	view_pos: vec3<f32>,
-	view_proj: mat4x4<f32>,
+	proj_view: mat4x4<f32>,
+	inv_proj: mat4x4<f32>,
 };
 
 @group(0) @binding(0)
@@ -33,7 +34,7 @@ fn vs_main(@builtin(vertex_index) vertex_idx: u32) -> VertexOutput {
     } else {
         res = vec4<f32>(0., 0.5, 0., 1.);
     }
-    res = cam.view_proj * res;
+    res = cam.proj_view * res;
     return VertexOutput(res);
 }
 

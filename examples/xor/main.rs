@@ -271,10 +271,10 @@ fn main() -> Result<()> {
     let window_size = window.inner_size();
 
     let camera = Camera::new(
+        3.,
+        -0.5,
         1.,
-        0.5,
-        1.,
-        (0.5, 0.5, 0.5).into(),
+        (0., 0., 0.).into(),
         window_size.width as f32 / window_size.height as f32,
     );
     run::<Xor>(event_loop, window, Some(camera))

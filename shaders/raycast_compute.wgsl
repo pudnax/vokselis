@@ -10,7 +10,8 @@ struct Uniform {
 
 struct Camera {
 	view_pos: vec4<f32>,
-	view_proj: mat4x4<f32>,
+	proj_view: mat4x4<f32>,
+	inv_proj: mat4x4<f32>,
 };
 
 struct Offset {
@@ -80,20 +81,23 @@ fn get_col2(eye: vec3<f32>, dir: vec3<f32>, tmin: f32, tmax: f32, clear_color: v
 }
 
 fn render(global_id: vec2<u32>, offset_x: f32, offset_y: f32) -> vec4<f32> {
-    let coord = vec2<f32>(global_id) + vec2(offset_x, offset_y);
     let time = un.time * 0.5;
 
+    let coord = vec2<f32>(global_id) + vec2(offset_x, offset_y);
     let dims = vec2<f32>(textureDimensions(out_tex));
     let aspect_ratio = dims.y / dims.x;
 
-    let start_x = coord.x / dims.x - 0.5;
-    let start_y = -(coord.y / dims.y - 0.5) * aspect_ratio;
+    var screen_coord = 2. * vec2(coord.x, coord.y) / dims - 1.;
+    screen_coord.y *= -aspect_ratio;
 
-    let zoom = 1.;
-    var eye = vec3(2., 1., 2.);
-    eye = 6. * vec3(cos(time), 0., sin(time)) + vec3(0., 1., 0.);
-    let camera = get_cam(eye, vec3(0.0));
-    let dir = camera * vec3(start_x, start_y, zoom);
+    let screen_point = vec4(screen_coord, 0., 1.);
+    let screen_tangent = screen_point + vec4(0., 0., 1., 0.);
+
+    var view_pos = cam.inv_proj * screen_point;
+    var view_tang = cam.inv_proj * screen_tangent;
+
+    let eye = view_pos.xyz / view_pos.w;
+    let dir = normalize(view_tang.xyz / view_tang.w - eye);
 
     let clear_color = vec4<f32>(0.1, 0.3, 0.3, 0.01);
 

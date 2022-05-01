@@ -24,7 +24,8 @@ struct Uniform {
 
 struct Camera {
 	view_pos: vec4<f32>,
-	view_proj: mat4x4<f32>,
+	proj_view: mat4x4<f32>,
+	inv_proj: mat4x4<f32>,
 };
 
 @group(0) @binding(0)
@@ -40,7 +41,7 @@ var tex_sampler: sampler;
 fn vs_main(vert: VertexInput) -> VertexOutput {
     var vout: VertexOutput;
     var pos = vert.position;
-    vout.position = cam.view_proj * vec4<f32>(pos, 1.0);
+    vout.position = cam.proj_view * vec4<f32>(pos, 1.0);
     vout.transformed_eye = cam.view_pos.xyz;
     vout.ray_dir = pos - vout.transformed_eye;
     return vout;

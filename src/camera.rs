@@ -6,14 +6,16 @@ use wgpu::util::DeviceExt;
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraUniform {
     pub view_position: [f32; 4],
-    pub view_proj: [[f32; 4]; 4],
+    pub proj_view: [[f32; 4]; 4],
+    pub inv_proj: [[f32; 4]; 4],
 }
 
 impl Default for CameraUniform {
     fn default() -> Self {
         Self {
             view_position: [0.0; 4],
-            view_proj: Mat4::IDENTITY.to_cols_array_2d(),
+            proj_view: Mat4::IDENTITY.to_cols_array_2d(),
+            inv_proj: Mat4::IDENTITY.to_cols_array_2d(),
         }
     }
 }
@@ -62,7 +64,7 @@ impl CameraBinding {
             queue.write_buffer(
                 &self.buffer,
                 0,
-                bytemuck::bytes_of(&camera.get_view_proj_matrix()),
+                bytemuck::bytes_of(&camera.get_proj_view_matrix()),
             );
             camera.updated = false;
         }
@@ -104,7 +106,7 @@ impl Camera {
         camera
     }
 
-    pub fn build_view_projection_matrix(&self) -> Mat4 {
+    pub fn build_projection_view_matrix(&self) -> Mat4 {
         let view = Mat4::look_at_rh(self.eye, self.target, self.up);
         let proj = Mat4::perspective_rh(Self::FOVY, self.aspect, Self::ZNEAR, Self::ZFAR);
         proj * view
@@ -159,10 +161,12 @@ impl Camera {
         self.updated = true;
     }
 
-    pub fn get_view_proj_matrix(&self) -> CameraUniform {
+    pub fn get_proj_view_matrix(&self) -> CameraUniform {
+        let proj_view = self.build_projection_view_matrix();
         CameraUniform {
             view_position: [self.eye.x, self.eye.y, self.eye.z, 1.0],
-            view_proj: self.build_view_projection_matrix().to_cols_array_2d(),
+            proj_view: proj_view.to_cols_array_2d(),
+            inv_proj: proj_view.inverse().to_cols_array_2d(),
         }
     }
 }
