@@ -14,7 +14,7 @@ pub use camera::{Camera, CameraBinding};
 pub use context::{
     Context, GlobalUniformBinding, HdrBackBuffer, PipelineHandle, Uniform, VolumeTexture,
 };
-pub use utils::{dispatch_optimal, shader_compiler};
+pub use utils::{dispatch_optimal, shader_compiler, NonZeroSized};
 pub use watcher::{ReloadablePipeline, Watcher};
 
 use color_eyre::eyre::Result;

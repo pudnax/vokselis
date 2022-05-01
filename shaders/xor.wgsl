@@ -18,9 +18,9 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let t = un.time;
     let dims = vec3<f32>(textureDimensions(xor_tex));
     var coord = (vec3<f32>(global_id) - dims / 2.) / dims;
-    let pos = coord * 28. + vec3(t, sin(t * 2.), t * 0.5);
-    let res = 6.;
-    let val = f32(i32(pos.x % res) & i32(pos.y % res) & i32(pos.z % res));
+    let pos = (coord + vec3(1., sin(t * 1.) * 0.1, 21.)) * 32.;
+    let res = 25.;
+    let val = f32(i32(pos.x * res) & i32(pos.y * res) & i32(pos.z * res)) / res;
     let alpha = val * step(length(coord), 0.5);
     textureStore(xor_tex, global_id, vec4<f32>(coord, alpha));
 }

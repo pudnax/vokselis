@@ -103,7 +103,7 @@ impl Context {
                 &wgpu::DeviceDescriptor {
                     label: Some("Device Descriptor"),
                     features,
-                    limits,
+                    limits: limits.clone(),
                 },
                 None,
             )
