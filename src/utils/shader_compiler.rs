@@ -90,6 +90,7 @@ fn get_options() -> spv::Options {
             index: naga::proc::BoundsCheckPolicy::Unchecked,
             buffer: naga::proc::BoundsCheckPolicy::Unchecked,
             image: naga::proc::BoundsCheckPolicy::Unchecked,
+            binding_array: naga::proc::BoundsCheckPolicy::Unchecked,
         },
     }
 }

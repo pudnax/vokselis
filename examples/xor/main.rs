@@ -215,11 +215,11 @@ impl Demo for Xor {
                 label: Some("Volume Encoder"),
             });
 
+        encoder.write_timestamp(&self.timestamp, 0);
+
         let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
             label: Some("Raycast Pass"),
         });
-
-        cpass.write_timestamp(&self.timestamp, 0);
 
         match self.mode {
             Mode::SinglePass => {
@@ -254,8 +254,9 @@ impl Demo for Xor {
                 }
             }
         }
-        cpass.write_timestamp(&self.timestamp, 1);
         drop(cpass);
+
+        encoder.write_timestamp(&self.timestamp, 1);
         encoder.resolve_query_set(&self.timestamp, 0..2, &self.timestamp_buffer, 0);
 
         ctx.queue.submit(Some(encoder.finish()));
