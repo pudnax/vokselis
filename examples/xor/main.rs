@@ -22,16 +22,11 @@ enum Mode {
 pub struct Offset {
     x: f32,
     y: f32,
-    _padding: [f32; 2],
 }
 
 impl Offset {
     pub fn new(x: f32, y: f32) -> Self {
-        Self {
-            x,
-            y,
-            _padding: [0., 0.],
-        }
+        Self { x, y }
     }
 }
 
@@ -43,7 +38,7 @@ struct Xor {
 
     offset_buffer_bind_group: wgpu::BindGroup,
     buffer_len: usize,
-    min_storage_dyn_offset: u32,
+    aligned_offset: u32,
 }
 
 impl Demo for Xor {
@@ -75,17 +70,24 @@ impl Demo for Xor {
         );
 
         let (w, h) = HdrBackBuffer::DEFAULT_RESOLUTION;
+        let min_align = ctx.limits.min_storage_buffer_offset_alignment;
+        let padding = (min_align - std::mem::size_of::<Offset>() as u32 % min_align) % min_align;
         let offsets = {
             let mut res = vec![];
             for y in 0..(h / TILE_SIZE).max(1) {
                 for x in 0..(w / TILE_SIZE).max(1) {
-                    res.push(Offset::new((x * TILE_SIZE) as f32, (y * TILE_SIZE) as f32));
+                    res.extend(bytemuck::bytes_of(&Offset::new(
+                        (x * TILE_SIZE) as f32,
+                        (y * TILE_SIZE) as f32,
+                    )));
+                    res.extend(std::iter::repeat(0).take(padding as _));
                 }
             }
 
             res
         };
-        let buffer_len = offsets.len();
+        let aligned_offset = std::mem::size_of::<Offset>() as u32 + padding;
+        let buffer_len = offsets.len() / aligned_offset as usize;
 
         let offset_buffer = ctx
             .device
@@ -116,7 +118,7 @@ impl Demo for Xor {
             raycast_tile,
             mode: Mode::SinglePass,
 
-            min_storage_dyn_offset: ctx.limits.min_storage_buffer_offset_alignment,
+            aligned_offset,
             offset_buffer_bind_group,
             buffer_len,
         }
@@ -194,7 +196,7 @@ impl Demo for Xor {
                         cpass.set_bind_group(
                             4,
                             &self.offset_buffer_bind_group,
-                            &[(offset * std::mem::size_of::<Offset>()) as u32],
+                            &[offset as u32 * self.aligned_offset],
                         );
                         cpass.dispatch(
                             dispatch_optimal(TILE_SIZE, 8),
