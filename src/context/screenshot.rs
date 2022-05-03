@@ -34,12 +34,12 @@ impl ScreenshotCtx {
         }
     }
 
-    pub async fn capture_frame(
+    pub fn capture_frame(
         &self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         src_texture: &wgpu::Texture,
-    ) -> Result<(Vec<u8>, ImageDimentions), wgpu::BufferAsyncError> {
+    ) -> (Vec<u8>, ImageDimentions) {
         // puffin::profile_function!();
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Capture Encoder"),
@@ -67,15 +67,13 @@ impl ScreenshotCtx {
         queue.submit(Some(encoder.finish()));
 
         let image_slice = self.data.slice(0..self.image_dimentions.linear_size());
-        let map_future = image_slice.map_async(MapMode::Read);
+        let _ = image_slice.map_async(MapMode::Read);
 
         device.poll(wgpu::Maintain::Wait);
-        map_future.await.map(|_| {
-            let frame = image_slice.get_mapped_range().to_vec();
-            self.data.unmap();
+        let frame = image_slice.get_mapped_range().to_vec();
+        self.data.unmap();
 
-            (frame, self.image_dimentions)
-        })
+        (frame, self.image_dimentions)
     }
 }
 

@@ -300,8 +300,6 @@ impl Context {
     pub fn capture_frame(&self) -> (Vec<u8>, ImageDimentions) {
         self.screenshot_ctx
             .capture_frame(&self.device, &self.queue, &self.rgb_texture)
-            .block_on()
-            .unwrap()
     }
 
     pub fn capture_image_dimentions(&self) -> ImageDimentions {
