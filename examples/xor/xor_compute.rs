@@ -8,6 +8,7 @@ use vokselis::{
 pub struct XorCompute {
     pipeline: wgpu::ComputePipeline,
     xor_texture: wgpu::Texture,
+    normal_texture: wgpu::Texture,
     pub storage_bind_group: wgpu::BindGroup,
     pub render_bind_group: wgpu::BindGroup,
 }
@@ -16,16 +17,28 @@ impl XorCompute {
     pub const DESC_COMPUTE: wgpu::BindGroupLayoutDescriptor<'static> =
         wgpu::BindGroupLayoutDescriptor {
             label: Some("Storage Texture Layour"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::COMPUTE,
-                ty: wgpu::BindingType::StorageTexture {
-                    access: wgpu::StorageTextureAccess::ReadWrite,
-                    format: wgpu::TextureFormat::Rgba8Unorm,
-                    view_dimension: wgpu::TextureViewDimension::D3,
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::StorageTexture {
+                        access: wgpu::StorageTextureAccess::ReadWrite,
+                        format: wgpu::TextureFormat::Rgba16Float,
+                        view_dimension: wgpu::TextureViewDimension::D3,
+                    },
+                    count: None,
                 },
-                count: None,
-            }],
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::StorageTexture {
+                        access: wgpu::StorageTextureAccess::ReadWrite,
+                        format: wgpu::TextureFormat::Rgba16Float,
+                        view_dimension: wgpu::TextureViewDimension::D3,
+                    },
+                    count: None,
+                },
+            ],
         };
     pub const DESC_RENDER: wgpu::BindGroupLayoutDescriptor<'static> =
         wgpu::BindGroupLayoutDescriptor {
@@ -44,6 +57,17 @@ impl XorCompute {
                 },
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT
+                        .union(wgpu::ShaderStages::COMPUTE),
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D3,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
                     visibility: wgpu::ShaderStages::VERTEX_FRAGMENT
                         .union(wgpu::ShaderStages::COMPUTE),
                     ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
@@ -78,19 +102,35 @@ impl XorCompute {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D3,
-            format: wgpu::TextureFormat::Rgba8Unorm,
+            format: wgpu::TextureFormat::Rgba16Float,
             usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING,
         });
-        let view = xor_texture.create_view(&Default::default());
+        let xor_view = xor_texture.create_view(&Default::default());
+        let normal_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("XOR Normal Texture"),
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D3,
+            format: wgpu::TextureFormat::Rgba16Float,
+            usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING,
+        });
+        let normal_view = normal_texture.create_view(&Default::default());
 
         let pipeline = Self::make_pipeline(device, module);
         let storage_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("XOR Compute Bind Group"),
             layout: &device.create_bind_group_layout(&Self::DESC_COMPUTE),
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: wgpu::BindingResource::TextureView(&view),
-            }],
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&xor_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&normal_view),
+                },
+            ],
         });
 
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
@@ -105,10 +145,14 @@ impl XorCompute {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&view),
+                    resource: wgpu::BindingResource::TextureView(&xor_view),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&normal_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
                     resource: wgpu::BindingResource::Sampler(&sampler),
                 },
             ],
@@ -117,6 +161,7 @@ impl XorCompute {
         Self {
             pipeline,
             xor_texture,
+            normal_texture,
             storage_bind_group,
             render_bind_group,
         }

@@ -132,6 +132,19 @@ impl Demo for Xor {
 
         println!("Change rendering mode on F1");
 
+        let mut encoder = ctx
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("XOR Update encoder"),
+            });
+
+        let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+            label: Some("XOR Update Pass"),
+        });
+        xor_texture.record(&mut cpass, &ctx.global_uniform_binding);
+        drop(cpass);
+        ctx.queue.submit(Some(encoder.finish()));
+
         Self {
             xor_texture,
             raycast_single,
@@ -149,20 +162,6 @@ impl Demo for Xor {
     }
 
     fn update(&mut self, ctx: &mut vokselis::Context) {
-        let mut encoder = ctx
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("XOR Update encoder"),
-            });
-
-        let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-            label: Some("XOR Update Pass"),
-        });
-        self.xor_texture
-            .record(&mut cpass, &ctx.global_uniform_binding);
-        drop(cpass);
-        ctx.queue.submit(Some(encoder.finish()));
-
         if ctx.global_uniform.frame % 100 == 0 {
             let _ = self
                 .timestamp_buffer

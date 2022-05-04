@@ -6,7 +6,6 @@ use std::{
 };
 
 use color_eyre::eyre::{eyre, Result};
-use pollster::FutureExt;
 use wgpu::Instance;
 use winit::{dpi::PhysicalSize, window::Window};
 

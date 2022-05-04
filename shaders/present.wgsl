@@ -29,6 +29,11 @@ fn linear_to_srgb(col: vec4<f32>) -> vec4<f32> {
     return vec4<f32>(result, col.a);
 }
 
+//https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
+fn ACESFilm(x: vec3<f32>) -> vec3<f32> {
+    return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), vec3(0.0), vec3(1.0));
+}
+
 fn tex_sample(tex: texture_2d<f32>, uv: vec2<f32>) -> float4 {
     return textureSample(tex, src_sampler, uv);
 }
@@ -105,9 +110,10 @@ struct FragmentOutput {
 
 @fragment
 fn fs_main(vin: VertexOutput) -> FragmentOutput {
-    // let col = tex_sample(src_texture, vin.uv);
+    let col = tex_sample(src_texture, vin.uv);
     // let col = texture_quadratic(src_texture, vin.uv);
-    let col = texture_bicubic(src_texture, vin.uv);
+    // let col = texture_bicubic(src_texture, vin.uv);
+    let col = vec4(ACESFilm(col.rgb), col.a);
     let col = linear_to_srgb(col);
     return FragmentOutput(col, col);
 }

@@ -24,7 +24,9 @@ var<uniform> un: Uniform;
 @group(1) @binding(0)
 var<uniform> cam: Camera;
 @group(2) @binding(0)
-var volume: texture_storage_3d<rgba8unorm, read>;
+var volume: texture_storage_3d<rgba16float, read>;
+@group(2) @binding(1)
+var volume_normal: texture_storage_3d<rgba16float, read>;
 @group(3) @binding(0)
 var out_tex: texture_storage_2d<rgba16float, write>;
 @group(4) @binding(0)
@@ -58,21 +60,35 @@ fn get_cam(eye: vec3<f32>, tar: vec3<f32>) -> mat3x3<f32> {
 }
 
 fn get_col2(eye: vec3<f32>, dir: vec3<f32>, tmin: f32, tmax: f32, clear_color: vec4<f32>) -> vec4<f32> {
-    var color = vec4(0.0);
+    var color = vec4(clear_color.rgb, 0.1);
+    let light = vec3(0., -1., 0.);
     let block_size = vec3<f32>(textureDimensions(volume));
     let dt_vec = 1.0 / (block_size * abs(dir));
     let dt_scale = 1.0;
-    let dt = max(dt_scale * min(dt_vec.x, min(dt_vec.y, dt_vec.z)), 0.01);
+    let dt = dt_scale * max(min(dt_vec.x, min(dt_vec.y, dt_vec.z)), 0.01);
     for (var t = tmin; t < tmax; t = t + dt) {
         var p = eye + t * dir;
-        let vol_content = textureLoad(volume, vec3<i32>((p + 1.) * (block_size / 2.)));
+        let samp = vec3<i32>((p + 1.) * (block_size / 2.));
+        let vol_content = textureLoad(volume, samp);
+        let normal = textureLoad(volume_normal, samp);
+        var shade = vec3(max(0., dot(light, normal.rgb)));
 
         var vol_color = vol_content.rgb;
-        let vol_alpha = pow(vol_content.a, 3.0);
 
-        let tmp = color.rgb + (1.0 - color.a) * vol_alpha * vol_color + clear_color.rgb * clear_color.a * (1.0 - vol_alpha);
+        var vol_alpha = pow(vol_content.a, 3.0);
+        vol_alpha = smoothstep(0.0, 0.7, vol_alpha);
+
+        var directional = 3.0 * vec3(1., .1, .13) * max(dot(normal.xyz, normalize(vec3(-2., -2., -1.))), .0);
+        directional *= smoothstep(.3, 1.5, dot(p, normalize(vec3(1., 1., -1.))));
+        vol_color += directional;
+
+        let bottom_light = 0.9 * clamp(0.5 - 0.5 * normal.y, 0., 1.);
+        shade = mix(shade, bottom_light * vec3(0., 0., 0.6), 0.2);
+
+        let tmp = color.rgb + (1.0 - color.a) * vol_alpha * vol_color * shade;
+        let tmp = tmp + clear_color.rgb * clear_color.a * (1.0 - vol_alpha);
         color = vec4(tmp, color.a);
-        color.a = color.a + (1.0 - color.a) * vol_alpha;
+        color.a = color.a + (1.0 - color.a) * vol_alpha * (1. - clear_color.a);
         if (color.a >= 0.95) {
 			break;
         }
@@ -99,7 +115,7 @@ fn render(global_id: vec2<u32>, offset_x: f32, offset_y: f32) -> vec4<f32> {
     let eye = view_pos.xyz / view_pos.w;
     let dir = normalize(view_tang.xyz / view_tang.w - eye);
 
-    let clear_color = vec4<f32>(0.1, 0.3, 0.3, 0.01);
+    let clear_color = vec4<f32>(0.023, 0.02, 0.02, 0.0);
 
     var color = vec4(0.);
     if (any(vec2<f32>(global_id.xy) < dims)) {
